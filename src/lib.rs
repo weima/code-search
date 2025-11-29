@@ -77,13 +77,29 @@ pub fn run_search(query: SearchQuery) -> Result<SearchResult> {
     }
 
     // Step 2: Find code references for each translation entry
+    // Search for full key AND partial keys (for namespace caching patterns)
     let matcher = PatternMatcher::new();
     let mut all_code_refs = Vec::new();
 
     for entry in &translation_entries {
-        let code_refs = matcher.find_usages(&entry.key)?;
-        all_code_refs.extend(code_refs);
+        // Generate all key variations (full key + partial keys)
+        let key_variations = generate_partial_keys(&entry.key);
+
+        // Search for each key variation
+        for key in &key_variations {
+            let code_refs = matcher.find_usages(key)?;
+            all_code_refs.extend(code_refs);
+        }
     }
+
+    // Deduplicate code references (in case same reference matches multiple key variations)
+    all_code_refs.sort_by(|a, b| {
+        a.file.cmp(&b.file)
+            .then(a.line.cmp(&b.line))
+    });
+    all_code_refs.dedup_by(|a, b| {
+        a.file == b.file && a.line == b.line
+    });
 
     Ok(SearchResult {
         query: query.text,
@@ -102,4 +118,38 @@ pub fn filter_translation_files(matches: &[Match]) -> Vec<PathBuf> {
         })
         .map(|m| m.file.clone())
         .collect()
+}
+
+/// Generate partial keys from a full translation key for common i18n patterns
+///
+/// For a key like "invoice.labels.add_new", this generates:
+/// - "invoice.labels.add_new" (full key)
+/// - "labels.add_new" (without first segment - namespace pattern)
+/// - "invoice.labels" (without last segment - parent namespace pattern)
+pub fn generate_partial_keys(full_key: &str) -> Vec<String> {
+    let mut keys = Vec::new();
+
+    // Always include the full key
+    keys.push(full_key.to_string());
+
+    let segments: Vec<&str> = full_key.split('.').collect();
+
+    // Only generate partial keys if we have at least 2 segments
+    if segments.len() >= 2 {
+        // Generate key without first segment (e.g., "labels.add_new" from "invoice.labels.add_new")
+        // This matches patterns like: ns = I18n.t('invoice.labels'); ns.t('add_new')
+        if segments.len() > 1 {
+            let without_first = segments[1..].join(".");
+            keys.push(without_first);
+        }
+
+        // Generate key without last segment (e.g., "invoice.labels" from "invoice.labels.add_new")
+        // This matches patterns like: labels = I18n.t('invoice.labels'); labels.t('add_new')
+        if segments.len() > 1 {
+            let without_last = segments[..segments.len() - 1].join(".");
+            keys.push(without_last);
+        }
+    }
+
+    keys
 }

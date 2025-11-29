@@ -28,6 +28,20 @@ class InvoiceList {
     console.log('Add button clicked');
     alert(I18n.t('invoice.labels.add_new'));
   }
+
+  // Namespace caching pattern - cache the parent namespace
+  private setupLabels(): void {
+    const labels = I18n.t('invoice.labels');
+    const addText = labels.add_new;
+    const editText = labels.edit;
+  }
+
+  // Another namespace caching pattern - using relative key
+  private setupWithRelativeKey(): void {
+    // Simulate caching invoice namespace and using relative path
+    const invoiceLabels = {} as any; // Would be I18n.t('invoice')
+    const text = invoiceLabels.t('labels.add_new'); // Relative key without 'invoice'
+  }
 }
 
 export { InvoiceList };

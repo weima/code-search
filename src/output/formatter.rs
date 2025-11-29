@@ -1,4 +1,6 @@
 use crate::tree::{NodeType, ReferenceTree, TreeNode};
+use crate::SearchResult;
+use colored::*;
 
 /// Formatter for rendering reference trees as text
 pub struct TreeFormatter {
@@ -8,6 +10,8 @@ pub struct TreeFormatter {
 impl TreeFormatter {
     /// Create a new TreeFormatter with default width (80 columns)
     pub fn new() -> Self {
+        // Force color output even when not in a TTY
+        colored::control::set_override(true);
         Self { max_width: 80 }
     }
 
@@ -16,7 +20,50 @@ impl TreeFormatter {
         Self { max_width }
     }
 
-    /// Format a reference tree as a string
+    /// Format a search result with clear sections
+    pub fn format_result(&self, result: &SearchResult) -> String {
+        let mut output = String::new();
+
+        // Section 1: Translation Files
+        if !result.translation_entries.is_empty() {
+            output.push_str(&format!("{}\n", "=== Translation Files ===".bold()));
+            for entry in &result.translation_entries {
+                output.push_str(&format!(
+                    "{}:{}:{}: {}\n",
+                    entry.file.display(),
+                    entry.line,
+                    entry.key.yellow().bold(),
+                    format!("\"{}\"", entry.value).green().bold()
+                ));
+            }
+            output.push('\n');
+        }
+
+        // Section 2: Code References
+        if !result.code_references.is_empty() {
+            output.push_str(&format!("{}\n", "=== Code References ===".bold()));
+            for code_ref in &result.code_references {
+                // Highlight the key in the context
+                let highlighted_context = self.highlight_key_in_context(&code_ref.context, &code_ref.key_path);
+                output.push_str(&format!(
+                    "{}:{}:{}\n",
+                    code_ref.file.display(),
+                    code_ref.line,
+                    highlighted_context
+                ));
+            }
+        }
+
+        output
+    }
+
+    /// Highlight the i18n key in the code context
+    fn highlight_key_in_context(&self, context: &str, key: &str) -> String {
+        // Make the key bold in the context
+        context.replace(key, &key.bold().to_string())
+    }
+
+    /// Format a reference tree as a string (legacy tree format)
     pub fn format(&self, tree: &ReferenceTree) -> String {
         let mut output = String::new();
         self.format_node(&tree.root, &mut output, "", true, true);
