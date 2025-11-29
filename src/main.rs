@@ -1,4 +1,5 @@
 use clap::Parser;
+use std::env;
 use std::process;
 
 /// Code Search - Trace text to implementation code
@@ -47,6 +48,7 @@ fn validate_depth(s: &str) -> Result<usize, String> {
 
 use colored::*;
 use regex::RegexBuilder;
+use std::path::Path;
 
 fn main() {
     let cli = Cli::parse();
@@ -80,43 +82,72 @@ fn main() {
         eprintln!("Call tracing not yet implemented");
         process::exit(1);
     } else {
-        let searcher = cs::search::TextSearcher::new()
-            .case_sensitive(cli.case_sensitive);
+        let mut all_matches = Vec::new();
 
-        match searcher.search(&cli.search_text) {
-            Ok(matches) => {
-                if matches.is_empty() {
-                    println!("No matches found for '{}'", cli.search_text);
-                } else {
-                    for m in matches {
-                        let content = m.content.trim();
-                        
-                        // Highlight the match
-                        let pattern = if cli.case_sensitive {
-                            &cli.search_text
-                        } else {
-                            &cli.search_text
-                        };
+        // First, search translation files using KeyExtractor
+        let current_dir = env::current_dir().unwrap_or_else(|_| Path::new(".").to_path_buf());
+        let key_extractor = cs::KeyExtractor::new();
+        let searcher = cs::search::TextSearcher::new().case_sensitive(cli.case_sensitive);
 
-                        let re = RegexBuilder::new(&regex::escape(pattern))
-                            .case_insensitive(!cli.case_sensitive)
-                            .build()
-                            .unwrap_or_else(|_| {
-                                // Fallback if regex fails (shouldn't happen with escaped string)
-                                RegexBuilder::new("").build().unwrap() 
-                            });
+        match key_extractor.extract(&current_dir, &cli.search_text) {
+            Ok(translation_matches) => {
+                for entry in translation_matches {
+                    // Add the translation file match
+                    let translation_match = cs::Match {
+                        file: entry.file,
+                        line: entry.line,
+                        content: format!("{}: \"{}\"", entry.key, entry.value),
+                    };
+                    all_matches.push(translation_match);
 
-                        let highlighted = re.replace_all(content, |caps: &regex::Captures| {
-                            caps[0].bold().to_string()
-                        });
-
-                        println!("{}:{}:{}", m.file.display(), m.line, highlighted);
+                    // Search for code that uses this translation key
+                    match searcher.search(&entry.key) {
+                        Ok(key_matches) => {
+                            all_matches.extend(key_matches);
+                        }
+                        Err(_) => {
+                            // Ignore errors when searching for specific keys
+                        }
                     }
                 }
+            }
+            Err(_) => {
+                // Ignore translation search errors and continue with code search
+            }
+        }
+
+        // Then, search code files for the original text using TextSearcher
+        match searcher.search(&cli.search_text) {
+            Ok(code_matches) => {
+                all_matches.extend(code_matches);
             }
             Err(e) => {
                 eprintln!("Error: {}", e);
                 process::exit(1);
+            }
+        }
+
+        if all_matches.is_empty() {
+            println!("No matches found for '{}'", cli.search_text);
+        } else {
+            for m in all_matches {
+                let content = m.content.trim();
+
+                // Highlight the match
+                let pattern = &cli.search_text;
+
+                let re = RegexBuilder::new(&regex::escape(pattern))
+                    .case_insensitive(!cli.case_sensitive)
+                    .build()
+                    .unwrap_or_else(|_| {
+                        // Fallback if regex fails (shouldn't happen with escaped string)
+                        RegexBuilder::new("").build().unwrap()
+                    });
+
+                let highlighted =
+                    re.replace_all(content, |caps: &regex::Captures| caps[0].bold().to_string());
+
+                println!("{}:{}:{}", m.file.display(), m.line, highlighted);
             }
         }
     }
