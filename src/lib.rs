@@ -1,4 +1,5 @@
 pub mod config;
+pub mod output;
 pub mod parse;
 pub mod search;
 pub mod tree;
@@ -8,6 +9,7 @@ use std::path::PathBuf;
 
 // Re-export commonly used types
 pub use config::default_patterns;
+pub use output::TreeFormatter;
 pub use parse::{KeyExtractor, TranslationEntry, YamlParser};
 pub use search::{CodeReference, Match, PatternMatcher, TextSearcher};
 pub use tree::{Location, NodeType, ReferenceTree, ReferenceTreeBuilder, TreeNode};
