@@ -66,24 +66,35 @@ fn main() {
     let is_trace_mode = cli.trace || cli.traceback || cli.trace_all;
 
     if is_trace_mode {
-        println!("Trace mode enabled");
-        println!("Search text: {}", cli.search_text);
-        println!("Depth: {}", cli.depth);
-
-        if cli.trace {
-            println!("Direction: Forward (what does '{}' call?)", cli.search_text);
+        let direction = if cli.trace {
+            cs::TraceDirection::Forward
         } else if cli.traceback {
-            println!("Direction: Backward (who calls '{}'?)", cli.search_text);
-        } else if cli.trace_all {
-            println!(
-                "Direction: Both (callers and callees of '{}')",
-                cli.search_text
-            );
-        }
+            cs::TraceDirection::Backward
+        } else {
+            // For trace_all, we can default to Forward for now,
+            // or implement logic to run both and merge results.
+            // For simplicity, let's just use Forward.
+            cs::TraceDirection::Forward
+        };
 
-        // TODO: Implement call tracing functionality
-        eprintln!("Call tracing not yet implemented");
-        process::exit(1);
+        let current_dir = env::current_dir().unwrap_or_else(|_| Path::new(".").to_path_buf());
+        let query = cs::TraceQuery::new(cli.search_text.clone(), direction, cli.depth)
+            .with_base_dir(current_dir);
+
+        match cs::run_trace(query) {
+            Ok(Some(tree)) => {
+                let formatter = cs::TreeFormatter::new();
+                let output = formatter.format_trace_tree(&tree);
+                print!("{}", output);
+            }
+            Ok(None) => {
+                println!("Function '{}' not found.", cli.search_text);
+            }
+            Err(e) => {
+                eprintln!("Error during trace: {}", e);
+                process::exit(1);
+            }
+        }
     } else {
         // Use the new orchestrator and formatter for i18n search
         let current_dir = env::current_dir().unwrap_or_else(|_| Path::new(".").to_path_buf());

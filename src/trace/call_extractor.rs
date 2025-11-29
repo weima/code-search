@@ -1,9 +1,10 @@
+use crate::error::Result;
+use crate::search::TextSearcher;
 use regex::Regex;
 use std::collections::HashSet;
 use std::fs;
 use std::path::PathBuf;
-use crate::error::Result;
-use crate::search::TextSearcher;
+
 use super::FunctionDef;
 
 /// Information about a function that calls another function
@@ -17,32 +18,141 @@ pub struct CallerInfo {
 /// Extracts function calls from code
 pub struct CallExtractor {
     searcher: TextSearcher,
-    call_pattern: Regex,
+    call_patterns: Vec<Regex>,
     pub keywords: HashSet<String>,
 }
 
 impl CallExtractor {
-    pub fn new() -> Self {
+    pub fn new(base_dir: PathBuf) -> Self {
         Self {
-            searcher: TextSearcher::new(),
-            call_pattern: Regex::new(r"(\w+)\s*\(").unwrap(),
+            searcher: TextSearcher::new(base_dir),
+            call_patterns: Self::default_call_patterns(),
             keywords: Self::common_keywords(),
         }
+    }
+
+    /// Default patterns for finding function calls across languages
+    fn default_call_patterns() -> Vec<Regex> {
+        vec![
+            // JavaScript/TypeScript - direct function calls
+            Regex::new(r"\b(\w+)\s*\(").unwrap(),
+            // JavaScript/TypeScript - method calls
+            Regex::new(r"\.(\w+)\s*\(").unwrap(),
+            // JavaScript/TypeScript - chained calls
+            Regex::new(r"\.(\w+)\s*\([^)]*\)\.(\w+)").unwrap(),
+            // Ruby - method calls
+            Regex::new(r"\b(\w+)\s*\(").unwrap(),
+            // Ruby - method calls without parentheses
+            Regex::new(r"\b(\w+)\s+\w+").unwrap(),
+        ]
     }
 
     /// Common language keywords to filter out (not function calls)
     fn common_keywords() -> HashSet<String> {
         let keywords = vec![
-            // JavaScript/TypeScript
-            "if", "for", "while", "switch", "catch", "typeof", "instanceof",
-            // Ruby
-            "puts", "print", "require", "include", "attr_accessor",
-            // Python
-            "print", "len", "range", "str", "int", "float", "list", "dict",
-            // Rust
-            "println", "print", "vec", "Some", "None", "Ok", "Err",
-            // Common
-            "return", "new", "delete", "throw",
+            // JavaScript/TypeScript keywords
+            "if",
+            "for",
+            "while",
+            "switch",
+            "catch",
+            "typeof",
+            "instanceof",
+            "const",
+            "let",
+            "var",
+            "function",
+            "class",
+            "extends",
+            "import",
+            "export",
+            "from",
+            "async",
+            "await",
+            "try",
+            "finally",
+            "else",
+            "break",
+            "continue",
+            "case",
+            "default",
+            "do",
+            "in",
+            "of",
+            // JavaScript/TypeScript built-ins
+            "console",
+            "window",
+            "document",
+            "setTimeout",
+            "setInterval",
+            "parseInt",
+            "parseFloat",
+            "isNaN",
+            "Object",
+            "Array",
+            "String",
+            "Number",
+            "Boolean",
+            "Date",
+            "Math",
+            "JSON",
+            "Promise",
+            // TypeScript specific
+            "interface",
+            "type",
+            "enum",
+            "namespace",
+            "declare",
+            "abstract",
+            "implements",
+            "public",
+            "private",
+            "protected",
+            "readonly",
+            // Ruby keywords
+            "if",
+            "unless",
+            "case",
+            "when",
+            "while",
+            "until",
+            "for",
+            "in",
+            "begin",
+            "rescue",
+            "ensure",
+            "end",
+            "class",
+            "module",
+            "def",
+            "puts",
+            "print",
+            "p",
+            "require",
+            "include",
+            "extend",
+            "attr_reader",
+            "attr_writer",
+            "attr_accessor",
+            "private",
+            "protected",
+            "public",
+            // Ruby built-ins
+            "Array",
+            "Hash",
+            "String",
+            "Integer",
+            "Float",
+            "Numeric",
+            "File",
+            // Common programming constructs
+            "return",
+            "new",
+            "delete",
+            "throw",
+            "raise",
+            "yield",
+            "super",
         ];
         keywords.into_iter().map(String::from).collect()
     }
@@ -54,24 +164,36 @@ impl CallExtractor {
     pub fn extract_calls(&self, func: &FunctionDef) -> Result<Vec<String>> {
         // Read the file
         let content = fs::read_to_string(&func.file)?;
-
         let lines: Vec<&str> = content.lines().collect();
 
-        // Find the function body (simplified - look at next 50 lines to capture larger functions)
+        // Find the function body - be smarter about detecting function boundaries
         let start_line = func.line.saturating_sub(1);
-        let end_line = (start_line + 50).min(lines.len());
+        let end_line = self.find_function_end(&lines, start_line).min(lines.len());
 
         let mut calls = HashSet::new();
 
         for line in &lines[start_line..end_line] {
-            // Find all function calls in this line
-            for cap in self.call_pattern.captures_iter(line) {
-                if let Some(name_match) = cap.get(1) {
-                    let name = name_match.as_str().to_string();
+            // Skip comments and strings
+            if self.is_comment_or_string(line) {
+                continue;
+            }
 
-                    // Filter out keywords and the function itself
-                    if !self.keywords.contains(&name) && name != func.name {
-                        calls.insert(name);
+            // Find all function calls using multiple patterns
+            for pattern in &self.call_patterns {
+                for cap in pattern.captures_iter(line) {
+                    // Try each capture group (patterns may have different group structures)
+                    for i in 1..cap.len() {
+                        if let Some(name_match) = cap.get(i) {
+                            let name = name_match.as_str();
+
+                            // Filter out invalid function names
+                            if self.is_valid_function_name(name)
+                                && !self.keywords.contains(name)
+                                && name != func.name
+                            {
+                                calls.insert(name.to_string());
+                            }
+                        }
                     }
                 }
             }
@@ -80,30 +202,86 @@ impl CallExtractor {
         Ok(calls.into_iter().collect())
     }
 
+    /// Find the end of a function definition by looking for closing braces
+    fn find_function_end(&self, lines: &[&str], start_line: usize) -> usize {
+        let mut brace_count = 0;
+        let mut found_opening = false;
+
+        for (i, line) in lines.iter().enumerate().skip(start_line) {
+            for ch in line.chars() {
+                match ch {
+                    '{' => {
+                        brace_count += 1;
+                        found_opening = true;
+                    }
+                    '}' => {
+                        brace_count -= 1;
+                        if found_opening && brace_count == 0 {
+                            return i + 1;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        // If we can't find the end, default to 30 lines
+        (start_line + 30).min(lines.len())
+    }
+
+    /// Check if a line is a comment or inside a string literal
+    fn is_comment_or_string(&self, line: &str) -> bool {
+        let trimmed = line.trim();
+        // JavaScript/TypeScript comments
+        trimmed.starts_with("//") || trimmed.starts_with("/*") ||
+        // Ruby comments
+        trimmed.starts_with("#")
+    }
+
+    /// Check if a string is a valid function name
+    fn is_valid_function_name(&self, name: &str) -> bool {
+        // Must be a valid identifier
+        !name.is_empty()
+            && name.chars().all(|c| c.is_alphanumeric() || c == '_')
+            && !name.chars().next().unwrap().is_numeric()
+    }
+
     /// Find all functions that call the given function
     ///
     /// Searches the codebase for all calls to `func_name` and identifies
-    /// the calling function for each occurrence.
+    /// the calling function for each occurrence. Uses case variants for cross-language support.
     pub fn find_callers(&self, func_name: &str) -> Result<Vec<CallerInfo>> {
         let mut callers = Vec::new();
 
-        // Search for function calls using pattern: func_name(
-        let matches = self.searcher.search(func_name)?;
+        // Generate case variants for cross-case searching
+        let variants = Self::generate_case_variants(func_name);
 
-        for m in matches {
-            // Verify this is actually a function call (not just the name appearing)
-            if !m.content.contains(&format!("{}(", func_name)) {
-                continue;
+        // Search for each variant
+        for variant in variants {
+            let matches = self.searcher.search(&variant)?;
+
+            for m in matches {
+                // Verify this is actually a function call (not just the name appearing)
+                if !m.content.contains(&format!("{}(", variant)) {
+                    continue;
+                }
+
+                // Try to determine the containing function
+                let caller_name = self.find_containing_function(&m.file, m.line)?;
+
+                // Avoid duplicates (same caller, file, line)
+                if !callers.iter().any(|existing: &CallerInfo| {
+                    existing.caller_name == caller_name
+                        && existing.file == m.file
+                        && existing.line == m.line
+                }) {
+                    callers.push(CallerInfo {
+                        caller_name,
+                        file: m.file.clone(),
+                        line: m.line,
+                    });
+                }
             }
-
-            // Try to determine the containing function
-            let caller_name = self.find_containing_function(&m.file, m.line)?;
-
-            callers.push(CallerInfo {
-                caller_name,
-                file: m.file.clone(),
-                line: m.line,
-            });
         }
 
         Ok(callers)
@@ -119,13 +297,23 @@ impl CallExtractor {
 
         // Search backwards from the line to find a function definition
         let function_patterns = vec![
+            // JavaScript/TypeScript patterns
             Regex::new(r"function\s+(\w+)").unwrap(),
             Regex::new(r"(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?\([^)]*\)\s*=>").unwrap(),
+            Regex::new(r"export\s+(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?\([^)]*\)\s*=>")
+                .unwrap(),
+            Regex::new(r"export\s+function\s+(\w+)").unwrap(),
+            Regex::new(
+                r"^\s*(?:public|private|protected|static)?\s*(?:async\s+)?(\w+)\s*\([^)]*\)\s*[:{]",
+            )
+            .unwrap(),
+            // Ruby patterns
             Regex::new(r"def\s+(\w+)").unwrap(),
-            Regex::new(r"fn\s+(\w+)").unwrap(),
+            Regex::new(r"def\s+self\.(\w+)").unwrap(),
+            // Generic method pattern
             Regex::new(r"^\s*(\w+)\s*\([^)]*\)\s*\{").unwrap(),
-            // Class methods
-            Regex::new(r"^\s*(?:async\s+)?(\w+)\s*\([^)]*\)\s*\{").unwrap(),
+            // Rust pattern (for completeness)
+            Regex::new(r"fn\s+(\w+)").unwrap(),
         ];
 
         // Search backwards up to 100 lines or start of file
@@ -148,11 +336,89 @@ impl CallExtractor {
         // If no containing function found, it might be top-level code
         Ok("<top-level>".to_string())
     }
+
+    /// Generate case variants of a function name for cross-case searching
+    ///
+    /// For input "createUser" generates: ["createUser", "create_user", "CreateUser"]
+    /// For input "user_profile" generates: ["user_profile", "userProfile", "UserProfile"]
+    fn generate_case_variants(func_name: &str) -> Vec<String> {
+        let mut variants = std::collections::HashSet::new();
+
+        // Always include the original
+        variants.insert(func_name.to_string());
+
+        // Generate snake_case variant
+        let snake_case = Self::to_snake_case(func_name);
+        variants.insert(snake_case.clone());
+
+        // Generate camelCase variant
+        let camel_case = Self::to_camel_case(&snake_case);
+        variants.insert(camel_case.clone());
+
+        // Generate PascalCase variant
+        let pascal_case = Self::to_pascal_case(&snake_case);
+        variants.insert(pascal_case);
+
+        variants.into_iter().collect()
+    }
+
+    /// Convert to snake_case
+    fn to_snake_case(input: &str) -> String {
+        let mut result = String::new();
+
+        for (i, ch) in input.chars().enumerate() {
+            if ch.is_uppercase() && i > 0 {
+                result.push('_');
+            }
+            result.push(ch.to_lowercase().next().unwrap());
+        }
+
+        result
+    }
+
+    /// Convert snake_case to camelCase
+    fn to_camel_case(input: &str) -> String {
+        let parts: Vec<&str> = input.split('_').collect();
+        if parts.is_empty() {
+            return String::new();
+        }
+
+        let mut result = parts[0].to_lowercase();
+        for part in parts.iter().skip(1) {
+            if !part.is_empty() {
+                let mut chars = part.chars();
+                if let Some(first) = chars.next() {
+                    result.push(first.to_uppercase().next().unwrap());
+                    result.push_str(&chars.as_str().to_lowercase());
+                }
+            }
+        }
+
+        result
+    }
+
+    /// Convert snake_case to PascalCase
+    fn to_pascal_case(input: &str) -> String {
+        let parts: Vec<&str> = input.split('_').collect();
+        let mut result = String::new();
+
+        for part in parts {
+            if !part.is_empty() {
+                let mut chars = part.chars();
+                if let Some(first) = chars.next() {
+                    result.push(first.to_uppercase().next().unwrap());
+                    result.push_str(&chars.as_str().to_lowercase());
+                }
+            }
+        }
+
+        result
+    }
 }
 
 impl Default for CallExtractor {
     fn default() -> Self {
-        Self::new()
+        Self::new(std::env::current_dir().unwrap())
     }
 }
 
@@ -162,22 +428,28 @@ mod tests {
 
     #[test]
     fn test_call_extractor_creation() {
-        let extractor = CallExtractor::new();
+        let extractor = CallExtractor::new(std::env::current_dir().unwrap());
         assert!(!extractor.keywords.is_empty());
     }
 
     #[test]
-    fn test_call_pattern() {
-        let extractor = CallExtractor::new();
+    fn test_call_patterns() {
+        let extractor = CallExtractor::new(std::env::current_dir().unwrap());
         let test_line = "result = processData(x, y);";
-        
-        let captures: Vec<_> = extractor.call_pattern.captures_iter(test_line).collect();
-        assert!(!captures.is_empty());
+
+        let mut found_calls = false;
+        for pattern in &extractor.call_patterns {
+            if pattern.is_match(test_line) {
+                found_calls = true;
+                break;
+            }
+        }
+        assert!(found_calls);
     }
 
     #[test]
     fn test_keywords_filter() {
-        let extractor = CallExtractor::new();
+        let extractor = CallExtractor::new(std::env::current_dir().unwrap());
         assert!(extractor.keywords.contains("if"));
         assert!(extractor.keywords.contains("for"));
         assert!(extractor.keywords.contains("while"));

@@ -146,14 +146,14 @@ And I see a suggestion to check for dynamic key construction
 - Search must support glob patterns for file filtering
 
 **FR-002**: Translation File Detection
-- Must identify YAML files as translation files based on:
-  - File extension (.yml, .yaml)
+- Must identify translation files based on:
+  - File extension (.yml, .yaml, .json)
   - Directory patterns (locales/, i18n/, config/locales/)
   - Content structure (key-value pairs)
 - Must support nested YAML structures (up to 10 levels deep)
 
 **FR-003**: Key Path Extraction
-- Must parse YAML files to extract translation key-value pairs
+- Must parse YAML and JSON files to extract translation key-value pairs
 - Must construct full dot-notation key paths (e.g., `invoice.labels.add_new`)
 - Must preserve key hierarchy and structure
 
@@ -454,10 +454,20 @@ And each section respects the depth limit
 - Must enforce maximum depth of 10 to prevent resource exhaustion
 - Must display depth-limited indicator when limit is reached
 
+**FR-011**: Cross-Case Function Search
+- Must support case-insensitive function name matching across naming conventions
+- Must generate and search all case variants for a given function name:
+  - snake_case ↔ camelCase ↔ PascalCase conversion
+  - Example: `createUser` finds `create_user`, `createUser`, `CreateUser`
+- Must preserve original function names in display results (no modification)
+- Must work for both forward (`--trace`) and backward (`--traceback`) tracing
+- Must handle multi-word conversions: `process_user_data` ↔ `processUserData` ↔ `ProcessUserData`
+- Must deduplicate results while maintaining all discovered matches
+- Critical for polyglot projects (Rails backend + React frontend)
+
 ## Out of Scope (Deferred to Future Phases)
 
 - Interactive navigation mode
-- JSON translation file support
 - Configuration file (.csrc)
 - Colored output
 - Reverse search (code → text)
