@@ -10,7 +10,7 @@ use std::path::PathBuf;
 pub use config::default_patterns;
 pub use parse::{KeyExtractor, TranslationEntry, YamlParser};
 pub use search::{CodeReference, Match, PatternMatcher, TextSearcher};
-pub use tree::{Location, NodeType, ReferenceTree, TreeNode};
+pub use tree::{Location, NodeType, ReferenceTree, ReferenceTreeBuilder, TreeNode};
 
 /// Query parameters for searching
 #[derive(Debug, Clone)]
