@@ -8,11 +8,9 @@ fn test_cli_displays_formatted_tree() {
         .current_dir("tests/fixtures/rails-app")
         .assert()
         .success()
-        .stdout(predicate::str::contains("'add new'"))
-        .stdout(predicate::str::contains("search query"))
+        .stdout(predicate::str::contains("=== Translation Files ==="))
+        .stdout(predicate::str::contains("=== Code References ==="))
         .stdout(predicate::str::contains("invoice.labels.add_new"))
-        .stdout(predicate::str::contains("Key:"))
-        .stdout(predicate::str::contains("Code:"))
         .stdout(predicate::str::contains("en.yml"))
         .stdout(predicate::str::contains("invoices.ts"));
 }
@@ -43,7 +41,8 @@ fn test_cli_shows_tree_structure() {
         .current_dir("tests/fixtures/rails-app")
         .assert()
         .success()
-        .stdout(predicate::str::contains("├─>").or(predicate::str::contains("└─>")));
+        .stdout(predicate::str::contains("=== Translation Files ==="))
+        .stdout(predicate::str::contains("=== Code References ==="));
 }
 
 #[test]
@@ -53,8 +52,8 @@ fn test_cli_shows_locations() {
         .current_dir("tests/fixtures/rails-app")
         .assert()
         .success()
-        .stdout(predicate::str::contains(":4)")) // Line number from YAML
-        .stdout(predicate::str::contains(":14)")); // Line number from code
+        .stdout(predicate::str::contains(":4:")) // Line number from YAML
+        .stdout(predicate::str::contains(":14:")); // Line number from code
 }
 
 #[test]
@@ -102,7 +101,7 @@ fn test_cli_multiple_translation_files() {
         .current_dir("tests/fixtures/rails-app")
         .assert()
         .success()
-        .stdout(predicate::str::contains("'ajouter nouveau'"))
+        .stdout(predicate::str::contains("ajouter nouveau"))
         .stdout(predicate::str::contains("fr.yml"))
         .stdout(predicate::str::contains("invoice.labels.add_new"));
 }
@@ -116,6 +115,9 @@ fn test_cli_multiple_code_references() {
         .success()
         .stdout(predicate::str::contains("invoice_list.ts"))
         .stdout(predicate::str::contains("invoices.ts"))
-        // Should show multiple code references
-        .stdout(predicate::str::contains("Code:").count(4));
+        // Should show multiple code references including partial keys
+        .stdout(predicate::str::contains("I18n.t").count(5))
+        // Verify partial key matching works
+        .stdout(predicate::str::contains("invoice.labels"))
+        .stdout(predicate::str::contains("labels.add_new"));
 }

@@ -97,12 +97,11 @@ fn main() {
                 if result.translation_entries.is_empty() && result.code_references.is_empty() {
                     println!("No matches found for '{}'", cli.search_text);
                 } else {
-                    // Build and format the reference tree
-                    let tree = cs::ReferenceTreeBuilder::build(&result);
+                    // Format the search result with clear sections
                     let formatter = cs::TreeFormatter::new();
-                    let output = formatter.format(&tree);
+                    let output = formatter.format_result(&result);
 
-                    println!("{}", output);
+                    print!("{}", output);
                 }
             }
             Err(e) => {
@@ -135,6 +134,7 @@ fn main() {
     }
 }
 
+#[allow(dead_code)]
 fn print_highlighted_match(m: &cs::Match, search_text: &str, case_sensitive: bool) {
     let content = m.content.trim();
     let mut highlighted = content.to_string();
@@ -176,6 +176,7 @@ fn print_highlighted_match(m: &cs::Match, search_text: &str, case_sensitive: boo
 }
 
 /// Check if a file is a code file based on default extensions and custom extensions
+#[allow(dead_code)]
 fn is_code_file(file_path: &std::path::Path, custom_extensions: &[String]) -> bool {
     let file_name = file_path.to_string_lossy().to_lowercase();
 
@@ -227,43 +228,10 @@ fn is_code_file(file_path: &std::path::Path, custom_extensions: &[String]) -> bo
     false
 }
 
-/// Generate partial keys from a full translation key for common i18n patterns
-///
-/// For a key like "invoice.labels.add_new", this generates:
-/// - "invoice.labels.add_new" (full key)
-/// - "labels.add_new" (without first segment - namespace pattern)
-/// - "invoice.labels" (without last segment - parent namespace pattern)
-fn generate_partial_keys(full_key: &str) -> Vec<String> {
-    let mut keys = Vec::new();
-
-    // Always include the full key
-    keys.push(full_key.to_string());
-
-    let segments: Vec<&str> = full_key.split('.').collect();
-
-    // Only generate partial keys if we have at least 2 segments
-    if segments.len() >= 2 {
-        // Generate key without first segment (e.g., "labels.add_new" from "invoice.labels.add_new")
-        // This matches patterns like: ns = I18n.t('invoice.labels'); ns.t('add_new')
-        if segments.len() > 1 {
-            let without_first = segments[1..].join(".");
-            keys.push(without_first);
-        }
-
-        // Generate key without last segment (e.g., "invoice.labels" from "invoice.labels.add_new")
-        // This matches patterns like: labels = I18n.t('invoice.labels'); labels.t('add_new')
-        if segments.len() > 1 {
-            let without_last = segments[..segments.len() - 1].join(".");
-            keys.push(without_last);
-        }
-    }
-
-    keys
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use cs::generate_partial_keys;
 
     #[test]
     fn test_validate_depth_valid() {
