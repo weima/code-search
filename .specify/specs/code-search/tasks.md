@@ -11,15 +11,15 @@
 
 ### US-1: Basic Text-to-Code Trace
 
-#### Task 1.1: Project Setup & Environment
+#### Task 1.1: Project Setup & Environment ✅ COMPLETED
 **Priority**: P1 | **Estimate**: 4 hours | **Dependencies**: None
 
 **Acceptance Criteria**:
-- [ ] Cargo project initialized
-- [ ] Cargo.toml configured with all dependencies
-- [ ] README.md has basic structure
-- [ ] LICENSE file present (Apache 2.0)
-- [ ] .gitignore configured for Rust
+- [x] Cargo project initialized
+- [x] Cargo.toml configured with all dependencies
+- [x] README.md has basic structure
+- [x] LICENSE file present (Apache 2.0)
+- [x] .gitignore configured for Rust
 
 **Subtasks**:
 1. Run `cargo init --bin code-search`
@@ -51,14 +51,14 @@
 
 ---
 
-#### Task 1.2: Test Fixtures Creation
+#### Task 1.2: Test Fixtures Creation ✅ COMPLETED
 **Priority**: P1 | **Estimate**: 3 hours | **Dependencies**: 1.1
 
 **Acceptance Criteria**:
-- [ ] Rails test project with YAML i18n files
-- [ ] React test project with JSON i18n files
-- [ ] Vue test project with JSON i18n files
-- [ ] Each fixture has clear search targets
+- [x] Rails test project with YAML i18n files
+- [x] React test project with JSON i18n files
+- [x] Vue test project with JSON i18n files
+- [x] Each fixture has clear search targets
 
 **Subtasks**:
 1. Create `tests/fixtures/rails-app/` directory
@@ -80,14 +80,14 @@
 
 ---
 
-#### Task 1.3: CLI Argument Parsing
+#### Task 1.3: CLI Argument Parsing ✅ COMPLETED
 **Priority**: P1 | **Estimate**: 4 hours | **Dependencies**: 1.1
 
 **Acceptance Criteria**:
-- [ ] CLI accepts search text as argument
-- [ ] `--help` displays usage information
-- [ ] `--version` displays version
-- [ ] Empty search text shows error
+- [x] CLI accepts search text as argument
+- [x] `--help` displays usage information
+- [x] `--version` displays version
+- [x] Empty search text shows error
 
 **Subtasks**:
 1. Create `src/main.rs` with clap derive:
@@ -130,14 +130,14 @@ fn test_cli_requires_search_text() {
 
 ---
 
-#### Task 1.4: Ripgrep Wrapper Implementation
+#### Task 1.4: Ripgrep Wrapper Implementation ✅ COMPLETED
 **Priority**: P1 | **Estimate**: 6 hours | **Dependencies**: 1.1, 1.3
 
 **Acceptance Criteria**:
-- [ ] Can execute ripgrep via std::process::Command
-- [ ] Parses ripgrep output into Match structs
-- [ ] Handles ripgrep not installed gracefully
-- [ ] Respects .gitignore by default
+- [x] Can execute ripgrep via std::process::Command
+- [x] Parses ripgrep output into Match structs
+- [x] Handles ripgrep not installed gracefully
+- [x] Respects .gitignore by default
 
 **Subtasks**:
 1. Create `src/search/mod.rs` and `src/search/text_search.rs`
@@ -183,14 +183,14 @@ fn test_ripgrep_not_found() {
 
 ---
 
-#### Task 1.5: YAML Parser Implementation
+#### Task 1.5: YAML Parser Implementation ✅ COMPLETED
 **Priority**: P1 | **Estimate**: 8 hours | **Dependencies**: 1.1
 
 **Acceptance Criteria**:
-- [ ] Parses YAML files with serde_yaml
-- [ ] Flattens nested structures into dot-notation
-- [ ] Handles malformed YAML gracefully
-- [ ] Extracts line numbers for each key-value pair
+- [x] Parses YAML files with serde_yaml
+- [x] Flattens nested structures into dot-notation
+- [x] Handles malformed YAML gracefully
+- [x] Extracts line numbers for each key-value pair
 
 **Subtasks**:
 1. Create `src/parse/mod.rs`, `src/parse/yaml_parser.rs`, `src/parse/translation.rs`
@@ -250,14 +250,14 @@ fn test_malformed_yaml_error() {
 
 ---
 
-#### Task 1.6: Key Path Extraction
+#### Task 1.6: Key Path Extraction ✅ COMPLETED
 **Priority**: P1 | **Estimate**: 4 hours | **Dependencies**: 1.5
 
 **Acceptance Criteria**:
-- [ ] Identifies which translation entries match search text
-- [ ] Extracts full dot-notation key paths
-- [ ] Handles multiple language files (en, fr, etc.)
-- [ ] Associates file and line number with each key
+- [x] Identifies which translation entries match search text
+- [x] Extracts full dot-notation key paths
+- [x] Handles multiple language files (en, fr, etc.)
+- [x] Associates file and line number with each key
 
 **Subtasks**:
 1. Create `src/parse/key_extractor.rs`

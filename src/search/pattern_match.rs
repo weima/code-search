@@ -1,7 +1,7 @@
 use crate::config::default_patterns;
+use crate::error::Result;
 use crate::parse::translation::TranslationEntry;
 use crate::search::text_search::TextSearcher;
-use anyhow::Result;
 use regex::Regex;
 use std::path::PathBuf;
 
@@ -46,6 +46,17 @@ impl PatternMatcher {
         let mut code_refs = Vec::new();
 
         for m in matches {
+            // Skip tool's own source files and documentation
+            let file_str = m.file.to_string_lossy().to_lowercase();
+            if file_str.starts_with("src/")
+                || (file_str.starts_with("tests/") && !file_str.starts_with("tests/fixtures/"))
+                || file_str.ends_with("readme.md")
+                || file_str.ends_with("evaluation.md")
+                || file_str.ends_with(".md")
+            {
+                continue;
+            }
+
             // Try to match against each pattern
             for pattern in &self.patterns {
                 if let Some(captures) = pattern.captures(&m.content) {
