@@ -1,0 +1,96 @@
+use assert_cmd::Command;
+use predicates::prelude::*;
+
+#[test]
+fn test_cli_displays_formatted_tree() {
+    let mut cmd = Command::cargo_bin("cs").unwrap();
+    cmd.arg("add new")
+        .current_dir("tests/fixtures/rails-app")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("'add new'"))
+        .stdout(predicate::str::contains("search query"))
+        .stdout(predicate::str::contains("invoice.labels.add_new"))
+        .stdout(predicate::str::contains("Key:"))
+        .stdout(predicate::str::contains("Code:"))
+        .stdout(predicate::str::contains("en.yml"))
+        .stdout(predicate::str::contains("invoices.ts"));
+}
+
+#[test]
+fn test_cli_no_matches() {
+    let mut cmd = Command::cargo_bin("cs").unwrap();
+    cmd.arg("nonexistent xyz abc")
+        .current_dir("tests/fixtures/rails-app")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("No matches found"));
+}
+
+#[test]
+fn test_cli_case_sensitive() {
+    let mut cmd = Command::cargo_bin("cs").unwrap();
+    cmd.args(["add new", "--case-sensitive"])
+        .current_dir("tests/fixtures/rails-app")
+        .assert()
+        .success();
+}
+
+#[test]
+fn test_cli_shows_tree_structure() {
+    let mut cmd = Command::cargo_bin("cs").unwrap();
+    cmd.arg("add new")
+        .current_dir("tests/fixtures/rails-app")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("├─>").or(predicate::str::contains("└─>")));
+}
+
+#[test]
+fn test_cli_shows_locations() {
+    let mut cmd = Command::cargo_bin("cs").unwrap();
+    cmd.arg("add new")
+        .current_dir("tests/fixtures/rails-app")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(":4)")) // Line number from YAML
+        .stdout(predicate::str::contains(":14)")); // Line number from code
+}
+
+#[test]
+fn test_cli_multiple_matches() {
+    let mut cmd = Command::cargo_bin("cs").unwrap();
+    cmd.arg("invoice")
+        .current_dir("tests/fixtures/rails-app")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("invoice"));
+}
+
+#[test]
+fn test_cli_empty_search_text() {
+    let mut cmd = Command::cargo_bin("cs").unwrap();
+    cmd.arg("")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("empty"));
+}
+
+#[test]
+fn test_cli_help() {
+    let mut cmd = Command::cargo_bin("cs").unwrap();
+    cmd.arg("--help")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Code Search"))
+        .stdout(predicate::str::contains("SEARCH_TEXT"));
+}
+
+#[test]
+fn test_cli_version() {
+    let mut cmd = Command::cargo_bin("cs").unwrap();
+    cmd.arg("--version")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("cs"));
+}
