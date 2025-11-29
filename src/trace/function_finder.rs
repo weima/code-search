@@ -1,5 +1,6 @@
 use regex::Regex;
 use std::path::PathBuf;
+use crate::error::{Result, SearchError};
 use crate::search::TextSearcher;
 
 /// Represents a function definition found in code
@@ -43,18 +44,27 @@ impl FunctionFinder {
     }
 
     /// Find all definitions of a function by name
-    pub fn find_definition(&self, func_name: &str) -> Result<Vec<FunctionDef>, String> {
+    ///
+    /// Searches the codebase for function definitions matching the given name.
+    /// Returns all found definitions with their file locations.
+    pub fn find_definition(&self, func_name: &str) -> Result<Vec<FunctionDef>> {
         let mut results = Vec::new();
 
         // Search for the function name in code
-        let matches = self.searcher
-            .search(func_name)
-            .map_err(|e| format!("Search failed: {}", e))?;
+        let matches = self.searcher.search(func_name)?;
 
         // Filter matches that look like function definitions
         for m in matches {
+            // Filter out the tool's own source files
+            let file_str = m.file.to_string_lossy().to_lowercase();
+            if file_str.starts_with("src/")
+                || (file_str.starts_with("tests/") && !file_str.starts_with("tests/fixtures/"))
+            {
+                continue;
+            }
+
             let content = &m.content;
-            
+
             // Check if this line matches any function definition pattern
             for pattern in &self.patterns {
                 if let Some(captures) = pattern.captures(content) {
@@ -74,7 +84,10 @@ impl FunctionFinder {
         }
 
         if results.is_empty() {
-            Err(format!("Function '{}' not found in codebase", func_name))
+            Err(SearchError::Generic(format!(
+                "Function '{}' not found in codebase",
+                func_name
+            )))
         } else {
             Ok(results)
         }
