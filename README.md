@@ -1,12 +1,18 @@
 # Code Search (cs)
 
-**Intelligent code search tool for tracing UI text through i18n files to implementation**
+**Intelligent code search tool for tracing text to implementation code**
 
 ## Problem Statement
 
 Modern IDEs like JetBrains suite provide powerful code navigation features through context menus - find definition, find references, etc. However, these IDEs are resource-intensive and not always practical for quick searches or lightweight environments.
 
-When debugging user-reported issues like "I clicked the 'Add New' button and nothing happens," developers without IDE support must perform a tedious multi-step manual search:
+Developers frequently need to search for text in their codebase, whether it's:
+- **UI text** from user bug reports: "The 'Add New' button isn't working"
+- **Function names** for understanding code flow: "What does `processPayment` call?"
+- **Variable names** for refactoring: "Where is `userId` used?"
+- **Error messages** for debugging: "Where does 'Invalid token' come from?"
+
+For UI text specifically, the search is even more complex when i18n is involved:
 
 1. Search for the text: `rg 'add new' -F`
 2. Manually scan results to find translation files (e.g., `en.yml`)
@@ -19,7 +25,10 @@ This manual process is time-consuming, error-prone, and interrupts the developme
 
 ## Solution
 
-`code-search` (abbreviated as `cs`) is a lightweight CLI tool that automates this entire workflow, providing intelligent code tracing from UI text through translation files to actual implementation.
+`code-search` (abbreviated as `cs`) is a lightweight CLI tool that automates code discovery workflows:
+- **Smart text search**: Find any text (UI text, code, error messages) in your codebase
+- **i18n-aware tracing**: Automatically follows references from UI text through translation files to implementation
+- **Call graph tracing**: Trace function calls forward or backward to understand code flow
 
 ### i18n Text Tracing
 
@@ -60,10 +69,11 @@ $ cs 'bar' --trace --depth 5
 
 ## Key Features
 
-- **Smart Text Tracing**: Automatically follows references from UI text to implementation
+- **Universal Text Search**: Find any text - UI text, function names, variable names, error messages
+- **Smart i18n Tracing**: Automatically follows references from UI text through translation files to implementation
 - **Call Graph Tracing**: Trace function calls forward (`--trace`) or backward (`--traceback`)
-- **i18n Aware**: Understands YAML/JSON translation file structures
-- **Pattern Recognition**: Identifies common i18n patterns (I18n.t, t(), $t, etc.)
+- **i18n Format Support**: Understands YAML/JSON translation file structures
+- **Pattern Recognition**: Identifies common i18n patterns (I18n.t, t(), $t, etc.) and function definitions
 - **Tree Visualization**: Clear visual representation of the reference chain
 - **Depth Control**: Configurable trace depth to prevent explosion in large codebases
 - **Cycle Detection**: Handles recursive/circular calls without hanging
@@ -72,12 +82,13 @@ $ cs 'bar' --trace --depth 5
 
 ## Use Cases
 
-- **Bug Triage**: Quickly locate implementation code from user-reported UI issues
-- **Code Exploration**: Understand what a function does by tracing its calls
+- **Bug Triage**: Quickly locate implementation from user-reported issues (UI text or error messages)
+- **Code Exploration**: Find where functions, variables, or constants are defined and used
+- **Call Flow Analysis**: Understand what a function does by tracing its calls
 - **Impact Analysis**: Find all callers of a function before refactoring
-- **Code Review**: Trace UI text to verify correct implementation
-- **Refactoring**: Find all usages of translation keys
-- **Onboarding**: Help new developers understand code organization and call flow
+- **i18n Workflow**: Trace UI text through translation files to verify correct implementation
+- **Debugging**: Locate error message sources or trace variable usage
+- **Onboarding**: Help new developers understand code organization and data flow
 - **Quick Navigation**: Fast code navigation without heavy IDE overhead
 
 ## Supported Patterns
