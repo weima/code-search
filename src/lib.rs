@@ -3,6 +3,7 @@ pub mod error;
 pub mod output;
 pub mod parse;
 pub mod search;
+pub mod trace;
 pub mod tree;
 
 use std::path::PathBuf;
