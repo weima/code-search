@@ -1,6 +1,6 @@
 // src/parse/key_extractor.rs
 
-use anyhow::Result;
+use crate::error::Result;
 use std::path::Path;
 use walkdir::WalkDir;
 
