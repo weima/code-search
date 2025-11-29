@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use crate::error::{Result, SearchError};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -12,8 +12,9 @@ pub struct YamlParser;
 
 impl YamlParser {
     pub fn parse_file(path: &Path) -> Result<Vec<TranslationEntry>> {
-        let content = fs::read_to_string(path)
-            .with_context(|| format!("Failed to read file: {}", path.display()))?;
+        let content = fs::read_to_string(path).map_err(|e| {
+            SearchError::yaml_parse_error(path, format!("Failed to read file: {}", e))
+        })?;
 
         // First, build a map of scalar values to their line numbers using Scanner
         let mut value_to_line: HashMap<String, usize> = HashMap::new();
@@ -33,8 +34,9 @@ impl YamlParser {
         }
 
         // Then, use YamlLoader to parse the structure
-        let docs = yaml_rust::YamlLoader::load_from_str(&content)
-            .with_context(|| format!("Failed to parse YAML file: {}", path.display()))?;
+        let docs = yaml_rust::YamlLoader::load_from_str(&content).map_err(|e| {
+            SearchError::yaml_parse_error(path, format!("Invalid YAML syntax: {}", e))
+        })?;
 
         let mut entries = Vec::new();
 

@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use crate::error::{Result, SearchError};
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -47,7 +47,7 @@ impl TextSearcher {
         Command::new("rg")
             .arg("--version")
             .output()
-            .context("ripgrep (rg) not found in PATH. Please install from https://github.com/BurntSushi/ripgrep#installation")?;
+            .map_err(|_| SearchError::RipgrepNotFound)?;
         Ok(())
     }
 
@@ -84,9 +84,9 @@ impl TextSearcher {
         cmd.arg("--fixed-strings").arg(text);
 
         // Execute the command
-        let output = cmd
-            .output()
-            .context("Failed to execute ripgrep command")?;
+        let output = cmd.output().map_err(|e| {
+            SearchError::RipgrepExecutionFailed(format!("Failed to execute ripgrep: {}", e))
+        })?;
 
         // ripgrep returns exit code 1 when no matches found (not an error)
         if output.status.code() == Some(1) && output.stdout.is_empty() {
@@ -94,8 +94,7 @@ impl TextSearcher {
         }
 
         // Parse the output
-        let stdout = String::from_utf8(output.stdout)
-            .context("ripgrep output is not valid UTF-8")?;
+        let stdout = String::from_utf8(output.stdout)?;
 
         self.parse_output(&stdout)
     }
