@@ -1,11 +1,14 @@
 use clap::Parser;
+use colored::*;
+use regex::RegexBuilder;
 use std::env;
+use std::path::Path;
 use std::process;
 
-/// Code Search - Trace text to implementation code
+/// Code Search - Intelligent code search tool for tracing text to implementation
 #[derive(Parser, Debug)]
 #[command(name = "cs")]
-#[command(author, version, about, long_about = None)]
+#[command(author, version, about = "Code Search - Intelligent code search tool for tracing text (UI text, function names, variables) to implementation code", long_about = None)]
 #[command(help_template = "{name} {version}\n{about}\n\nUSAGE:\n    {usage}\n\n{all-args}")]
 struct Cli {
     /// Text to search for (UI text, function names, variables, error messages, etc.)
@@ -50,10 +53,6 @@ fn validate_depth(s: &str) -> Result<usize, String> {
     Ok(depth)
 }
 
-use colored::*;
-use regex::RegexBuilder;
-use std::path::Path;
-
 fn main() {
     let cli = Cli::parse();
 
@@ -86,146 +85,29 @@ fn main() {
         eprintln!("Call tracing not yet implemented");
         process::exit(1);
     } else {
-        let mut translation_matches = Vec::new();
-        let mut code_reference_matches = Vec::new();
-        let mut other_matches = Vec::new();
-
-        // First, search translation files using KeyExtractor
+        // Use the new orchestrator and formatter for i18n search
         let current_dir = env::current_dir().unwrap_or_else(|_| Path::new(".").to_path_buf());
-        let key_extractor = cs::KeyExtractor::new();
-        let searcher = cs::search::TextSearcher::new().case_sensitive(cli.case_sensitive);
+        
+        let query = cs::SearchQuery::new(cli.search_text.clone())
+            .with_case_sensitive(cli.case_sensitive)
+            .with_base_dir(current_dir);
 
-        match key_extractor.extract(&current_dir, &cli.search_text) {
-            Ok(entries) => {
-                for entry in entries {
-                    // Add the translation file match
-                    let translation_match = cs::Match {
-                        file: entry.file,
-                        line: entry.line,
-                        content: format!("{}: \"{}\"", entry.key, entry.value),
-                    };
-                    translation_matches.push(translation_match);
-
-                    // Search for code that uses this translation key and partial keys
-                    let search_keys = generate_partial_keys(&entry.key);
-
-                    for search_key in search_keys {
-                        match searcher.search(&search_key) {
-                            Ok(key_matches) => {
-                                // Filter code references to only include actual code files
-                                for m in key_matches {
-                                    if is_code_file(&m.file, &cli.include_extensions) {
-                                        // Avoid duplicates
-                                        if !code_reference_matches.iter().any(
-                                            |existing: &cs::Match| {
-                                                existing.file == m.file && existing.line == m.line
-                                            },
-                                        ) {
-                                            code_reference_matches.push(m);
-                                        }
-                                    }
-                                }
-                            }
-                            Err(_) => {
-                                // Ignore errors when searching for specific keys
-                            }
-                        }
-                    }
-                }
-            }
-            Err(_) => {
-                // Ignore translation search errors and continue with code search
-            }
-        }
-
-        // Then, search code files for the original text using TextSearcher
-        match searcher.search(&cli.search_text) {
-            Ok(code_matches) => {
-                // Filter out noisy files and categorize matches
-                for m in code_matches {
-                    let file_name = m.file.to_string_lossy().to_lowercase();
-
-                    // Skip matches that are already captured in code_reference_matches
-                    if code_reference_matches
-                        .iter()
-                        .any(|existing| existing.file == m.file && existing.line == m.line)
-                    {
-                        continue;
-                    }
-
-                    // Filter out noisy file types when there are i18n matches
-                    if !translation_matches.is_empty()
-                        && (file_name.contains("readme")
-                            || file_name.contains("test")
-                            || file_name.contains("spec")
-                            || file_name.contains("evaluation")
-                            || file_name.contains("cargo.lock")
-                            || file_name.ends_with(".md"))
-                    {
-                        continue;
-                    }
-
-                    other_matches.push(m);
+        match cs::run_search(query) {
+            Ok(result) => {
+                if result.translation_entries.is_empty() && result.code_references.is_empty() {
+                    println!("No matches found for '{}'", cli.search_text);
+                } else {
+                    // Build and format the reference tree
+                    let tree = cs::ReferenceTreeBuilder::build(&result);
+                    let formatter = cs::TreeFormatter::new();
+                    let output = formatter.format(&tree);
+                    
+                    println!("{}", output);
                 }
             }
             Err(e) => {
                 eprintln!("Error: {}", e);
                 process::exit(1);
-            }
-        }
-
-        // Display results in prioritized order
-        let total_matches =
-            translation_matches.len() + code_reference_matches.len() + other_matches.len();
-
-        if total_matches == 0 {
-            println!("No matches found for '{}'", cli.search_text);
-        } else {
-            // Show translation matches first
-            if !translation_matches.is_empty() {
-                if total_matches > translation_matches.len() + code_reference_matches.len() {
-                    println!("=== Translation Files ===");
-                }
-                for m in &translation_matches {
-                    print_highlighted_match(&m, &cli.search_text, cli.case_sensitive);
-                }
-            }
-
-            // Show code references second
-            if !code_reference_matches.is_empty() {
-                if !translation_matches.is_empty()
-                    && total_matches > translation_matches.len() + code_reference_matches.len()
-                {
-                    println!("\n=== Code References ===");
-                } else if translation_matches.is_empty()
-                    && total_matches > code_reference_matches.len()
-                {
-                    println!("=== Code References ===");
-                }
-                for m in &code_reference_matches {
-                    print_highlighted_match(&m, &cli.search_text, cli.case_sensitive);
-                }
-            }
-
-            // Show other matches last
-            if !other_matches.is_empty() {
-                if !translation_matches.is_empty() || !code_reference_matches.is_empty() {
-                    println!("\n=== Other Matches ===");
-                }
-                // Limit other matches when we have i18n results
-                let limit = if translation_matches.is_empty() && code_reference_matches.is_empty() {
-                    other_matches.len()
-                } else {
-                    std::cmp::min(other_matches.len(), 10)
-                };
-
-                for m in other_matches.iter().take(limit) {
-                    print_highlighted_match(&m, &cli.search_text, cli.case_sensitive);
-                }
-
-                if other_matches.len() > limit {
-                    println!("... and {} more matches", other_matches.len() - limit);
-                }
             }
         }
     }

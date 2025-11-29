@@ -1,0 +1,12 @@
+fr:
+  invoice:
+    labels:
+      add_new: 'ajouter nouveau'
+      edit: 'modifier la facture'
+      delete: 'supprimer la facture'
+    messages:
+      created: 'Facture créée avec succès'
+  user:
+    labels:
+      login: 'se connecter'
+      logout: 'se déconnecter'
