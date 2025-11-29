@@ -1,0 +1,21 @@
+en:
+  invoice:
+    labels:
+      add_new: 'add new'
+      edit: 'edit invoice'
+      delete: 'delete invoice'
+      save: 'save changes'
+    messages:
+      created: 'Invoice created successfully'
+      updated: 'Invoice updated successfully'
+      deleted: 'Invoice deleted successfully'
+    errors:
+      not_found: 'Invoice not found'
+      invalid_data: 'Invalid invoice data'
+  user:
+    labels:
+      login: 'log in'
+      logout: 'log out'
+      signup: 'sign up'
+    messages:
+      welcome: 'Welcome back!'
