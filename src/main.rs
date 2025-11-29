@@ -105,27 +105,92 @@ fn main() {
                 }
             }
             Err(e) => {
-                // Handle errors with user-friendly messages
+                // Handle errors with user-friendly messages and helpful guidance
                 use cs::SearchError;
+                use colored::Colorize;
+
                 match e {
                     SearchError::RipgrepNotFound => {
-                        eprintln!("{}", e);
+                        eprintln!("{} {}", "Error:".red().bold(), e);
+                        eprintln!();
+                        eprintln!("{}", "Installation:".yellow().bold());
+                        eprintln!("  macOS:    brew install ripgrep");
+                        eprintln!("  Ubuntu:   apt-get install ripgrep");
+                        eprintln!("  Fedora:   dnf install ripgrep");
+                        eprintln!("  Windows:  choco install ripgrep");
+                        eprintln!();
+                        eprintln!("Or visit: https://github.com/BurntSushi/ripgrep#installation");
                         process::exit(1);
                     }
-                    SearchError::NoTranslationFiles { .. } => {
-                        eprintln!("{}", e);
+                    SearchError::NoTranslationFiles { text, searched_paths } => {
+                        eprintln!("{} No translation files found containing '{}'", "Error:".red().bold(), text.bold());
+                        eprintln!();
+                        eprintln!("{} {}", "Searched in:".yellow().bold(), searched_paths);
+                        eprintln!();
+                        eprintln!("{}", "Possible reasons:".yellow().bold());
+                        eprintln!("  • No YAML translation files exist in this directory");
+                        eprintln!("  • The text '{}' doesn't appear in any translation files", text);
+                        eprintln!("  • Translation files are in a different location");
+                        eprintln!();
+                        eprintln!("{}", "Next steps:".green().bold());
+                        eprintln!("  1. Check if you're in the right directory: {}", "pwd".cyan());
+                        eprintln!("  2. Look for translation files: {}", "find . -name '*.yml' -o -name '*.yaml'".cyan());
+                        eprintln!("  3. Verify the text exists: {}", format!("grep -r '{}' .", text).cyan());
                         process::exit(1);
                     }
-                    SearchError::YamlParseError { .. } => {
-                        eprintln!("{}", e);
+                    SearchError::YamlParseError { file, reason } => {
+                        eprintln!("{} Failed to parse YAML file: {}", "Error:".red().bold(), file.display().to_string().bold());
+                        eprintln!();
+                        eprintln!("{} {}", "Reason:".yellow().bold(), reason);
+                        eprintln!();
+                        eprintln!("{}", "Next steps:".green().bold());
+                        eprintln!("  1. Check YAML syntax: {}", format!("cat {}", file.display()).cyan());
+                        eprintln!("  2. Validate YAML online: https://www.yamllint.com/");
+                        eprintln!("  3. Common issues:");
+                        eprintln!("     • Incorrect indentation (use spaces, not tabs)");
+                        eprintln!("     • Missing quotes around special characters");
+                        eprintln!("     • Unclosed brackets or quotes");
                         process::exit(1);
                     }
-                    SearchError::NoCodeReferences { .. } => {
-                        eprintln!("{}", e);
+                    SearchError::NoCodeReferences { key, file } => {
+                        eprintln!("{} Translation key found but not used in code", "Warning:".yellow().bold());
+                        eprintln!();
+                        eprintln!("{} {}", "Key:".bold(), key.cyan());
+                        eprintln!("{} {}", "File:".bold(), file.display());
+                        eprintln!();
+                        eprintln!("{}", "Possible reasons:".yellow().bold());
+                        eprintln!("  • The key exists but is not yet used in code");
+                        eprintln!("  • The key is used dynamically (not detectable by static search)");
+                        eprintln!("  • The code files are outside the search scope");
+                        eprintln!();
+                        eprintln!("{}", "Next steps:".green().bold());
+                        eprintln!("  1. Search manually: {}", format!("grep -r '{}' .", key).cyan());
+                        eprintln!("  2. Check if key is used dynamically");
+                        eprintln!("  3. This might be an unused translation (safe to remove)");
+                        process::exit(0); // Exit successfully since this is just a warning
+                    }
+                    SearchError::Io(io_err) => {
+                        eprintln!("{} {}", "IO Error:".red().bold(), io_err);
+                        eprintln!();
+                        eprintln!("{}", "Next steps:".green().bold());
+                        eprintln!("  • Check file permissions");
+                        eprintln!("  • Verify the file/directory exists");
+                        eprintln!("  • Ensure you have read access to the directory");
+                        process::exit(1);
+                    }
+                    SearchError::RipgrepExecutionFailed(msg) => {
+                        eprintln!("{} {}", "Error:".red().bold(), msg);
+                        eprintln!();
+                        eprintln!("{}", "Next steps:".green().bold());
+                        eprintln!("  • Verify ripgrep is properly installed: {}", "rg --version".cyan());
+                        eprintln!("  • Check if the directory is accessible");
                         process::exit(1);
                     }
                     _ => {
-                        eprintln!("Error: {}", e);
+                        eprintln!("{} {}", "Error:".red().bold(), e);
+                        eprintln!();
+                        eprintln!("{}", "If this error persists, please report it at:".yellow());
+                        eprintln!("https://github.com/weima/code-search/issues");
                         process::exit(1);
                     }
                 }
