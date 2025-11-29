@@ -104,6 +104,77 @@ $ cs 'bar' --trace --depth 5
 - React: `useTranslation()`, `<Trans>`
 - Vue: `$t('key')`, `{{ $t('key') }}`
 
+## Custom File Extensions
+
+By default, the tool recognizes common code file extensions (`.ts`, `.tsx`, `.js`, `.jsx`, `.vue`, `.rb`, `.py`, `.java`, `.php`, `.rs`, `.go`, `.cpp`, `.c`, `.cs`, `.kt`, `.swift`). 
+
+For projects with custom file extensions, use the `--include-extensions` flag:
+
+```bash
+# Include files with custom extensions
+cs "search text" --include-extensions html.ui,vue.custom
+
+# Multiple extensions (comma-separated)
+cs "search text" --include-extensions erb.rails,blade.php,twig.html
+
+# Extensions with or without leading dot work the same
+cs "search text" --include-extensions .html.ui,.vue.custom
+```
+
+This is particularly useful for:
+- Custom framework file extensions (e.g., `.html.ui` for UI frameworks)
+- Template engines with compound extensions (e.g., `.erb.rails`, `.blade.php`)
+- Domain-specific file types (e.g., `.vue.custom`, `.component.ts`)
+
+## Partial Key Matching
+
+The tool automatically finds common i18n patterns where developers cache namespaces:
+
+```javascript
+// Common pattern: Cache namespace to avoid repetition
+const labels = I18n.t('invoice.labels');
+const addButton = labels.t('add_new');
+const editButton = labels.t('edit');
+
+// Deeper namespace caching
+const invoiceNS = I18n.t('invoice');
+const addLabel = invoiceNS.labels.t('add_new');
+```
+
+When searching for "add new", the tool finds:
+- **Translation file**: `invoice.labels.add_new: "add new"`
+- **Namespace usage**: `I18n.t('invoice.labels')` (parent namespace)
+- **Relative key usage**: `labels.t('add_new')` (child key)
+
+This works by generating strategic partial keys:
+- **Full key**: `invoice.labels.add_new`
+- **Without first segment**: `labels.add_new` (matches `labels.t('add_new')`)
+- **Without last segment**: `invoice.labels` (matches `I18n.t('invoice.labels')`)
+
+### Example Usage
+
+```bash
+# Basic i18n search
+$ cs "add new"
+=== Translation Files ===
+config/locales/en.yml:4:invoice.labels.add_new: "add new"
+
+=== Code References ===
+app/components/invoices.ts:14:I18n.t('invoice.labels.add_new')
+components/InvoiceManager.vue:3:{{ $t('invoice.labels.add_new') }}
+
+# Include custom file types
+$ cs "add new" --include-extensions html.ui,erb.rails
+=== Translation Files ===
+config/locales/en.yml:4:invoice.labels.add_new: "add new"
+
+=== Code References ===
+app/components/invoices.ts:14:I18n.t('invoice.labels.add_new')
+components/InvoiceManager.vue:3:{{ $t('invoice.labels.add_new') }}
+templates/invoice.html.ui:23:i18n('invoice.labels.add_new')
+views/invoice.erb.rails:45:<%= t('invoice.labels.add_new') %>
+```
+
 ## Roadmap
 
 ### Phase 1: Core Functionality
@@ -172,6 +243,9 @@ cs "functionName" --trace --depth 5
 
 # Case-sensitive search
 cs "Text" --case-sensitive
+
+# Include custom file extensions for code references
+cs "button text" --include-extensions html.ui,vue.custom,erb.rails
 
 # Help
 cs --help
