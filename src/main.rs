@@ -45,6 +45,9 @@ fn validate_depth(s: &str) -> Result<usize, String> {
     Ok(depth)
 }
 
+use colored::*;
+use regex::RegexBuilder;
+
 fn main() {
     let cli = Cli::parse();
 
@@ -77,14 +80,45 @@ fn main() {
         eprintln!("Call tracing not yet implemented");
         process::exit(1);
     } else {
-        // Default i18n search mode
-        println!("I18n search mode");
-        println!("Search text: {}", cli.search_text);
-        println!("Case sensitive: {}", cli.case_sensitive);
+        let searcher = cs::search::TextSearcher::new()
+            .case_sensitive(cli.case_sensitive);
 
-        // TODO: Implement i18n search functionality
-        eprintln!("I18n search not yet implemented");
-        process::exit(1);
+        match searcher.search(&cli.search_text) {
+            Ok(matches) => {
+                if matches.is_empty() {
+                    println!("No matches found for '{}'", cli.search_text);
+                } else {
+                    for m in matches {
+                        let content = m.content.trim();
+                        
+                        // Highlight the match
+                        let pattern = if cli.case_sensitive {
+                            &cli.search_text
+                        } else {
+                            &cli.search_text
+                        };
+
+                        let re = RegexBuilder::new(&regex::escape(pattern))
+                            .case_insensitive(!cli.case_sensitive)
+                            .build()
+                            .unwrap_or_else(|_| {
+                                // Fallback if regex fails (shouldn't happen with escaped string)
+                                RegexBuilder::new("").build().unwrap() 
+                            });
+
+                        let highlighted = re.replace_all(content, |caps: &regex::Captures| {
+                            caps[0].bold().to_string()
+                        });
+
+                        println!("{}:{}:{}", m.file.display(), m.line, highlighted);
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("Error: {}", e);
+                process::exit(1);
+            }
+        }
     }
 }
 
