@@ -2,6 +2,7 @@ use regex::Regex;
 use std::collections::HashSet;
 use std::fs;
 use std::path::PathBuf;
+use crate::error::Result;
 use crate::search::TextSearcher;
 use super::FunctionDef;
 
@@ -17,7 +18,7 @@ pub struct CallerInfo {
 pub struct CallExtractor {
     searcher: TextSearcher,
     call_pattern: Regex,
-    keywords: HashSet<String>,
+    pub keywords: HashSet<String>,
 }
 
 impl CallExtractor {
@@ -47,25 +48,27 @@ impl CallExtractor {
     }
 
     /// Extract function calls from a function body
-    pub fn extract_calls(&self, func: &FunctionDef) -> Result<Vec<String>, String> {
+    ///
+    /// Reads the function definition and extracts all function calls within its body.
+    /// Filters out language keywords and built-in functions.
+    pub fn extract_calls(&self, func: &FunctionDef) -> Result<Vec<String>> {
         // Read the file
-        let content = fs::read_to_string(&func.file)
-            .map_err(|e| format!("Failed to read file {:?}: {}", func.file, e))?;
+        let content = fs::read_to_string(&func.file)?;
 
         let lines: Vec<&str> = content.lines().collect();
-        
-        // Find the function body (simplified - just look at next 20 lines)
+
+        // Find the function body (simplified - look at next 50 lines to capture larger functions)
         let start_line = func.line.saturating_sub(1);
-        let end_line = (start_line + 20).min(lines.len());
-        
+        let end_line = (start_line + 50).min(lines.len());
+
         let mut calls = HashSet::new();
-        
+
         for line in &lines[start_line..end_line] {
             // Find all function calls in this line
             for cap in self.call_pattern.captures_iter(line) {
                 if let Some(name_match) = cap.get(1) {
                     let name = name_match.as_str().to_string();
-                    
+
                     // Filter out keywords and the function itself
                     if !self.keywords.contains(&name) && name != func.name {
                         calls.insert(name);
@@ -78,20 +81,24 @@ impl CallExtractor {
     }
 
     /// Find all functions that call the given function
-    pub fn find_callers(&self, func_name: &str) -> Result<Vec<CallerInfo>, String> {
+    ///
+    /// Searches the codebase for all calls to `func_name` and identifies
+    /// the calling function for each occurrence.
+    pub fn find_callers(&self, func_name: &str) -> Result<Vec<CallerInfo>> {
         let mut callers = Vec::new();
 
-        // Search for function calls
-        let call_pattern = format!(r"{}[\s]*\(", func_name);
-        let matches = self.searcher
-            .search(&call_pattern)
-            .map_err(|e| format!("Search failed: {}", e))?;
+        // Search for function calls using pattern: func_name(
+        let matches = self.searcher.search(func_name)?;
 
         for m in matches {
+            // Verify this is actually a function call (not just the name appearing)
+            if !m.content.contains(&format!("{}(", func_name)) {
+                continue;
+            }
+
             // Try to determine the containing function
-            // This is simplified - in a real implementation, we'd parse the AST
             let caller_name = self.find_containing_function(&m.file, m.line)?;
-            
+
             callers.push(CallerInfo {
                 caller_name,
                 file: m.file.clone(),
@@ -99,34 +106,35 @@ impl CallExtractor {
             });
         }
 
-        if callers.is_empty() {
-            Err(format!("No callers found for function '{}'", func_name))
-        } else {
-            Ok(callers)
-        }
+        Ok(callers)
     }
 
     /// Find the function that contains a given line (simplified implementation)
-    fn find_containing_function(&self, file: &PathBuf, line: usize) -> Result<String, String> {
-        let content = fs::read_to_string(file)
-            .map_err(|e| format!("Failed to read file {:?}: {}", file, e))?;
+    ///
+    /// Searches backwards from the given line to find the most recent function definition.
+    fn find_containing_function(&self, file: &PathBuf, line: usize) -> Result<String> {
+        let content = fs::read_to_string(file)?;
 
         let lines: Vec<&str> = content.lines().collect();
-        
+
         // Search backwards from the line to find a function definition
         let function_patterns = vec![
             Regex::new(r"function\s+(\w+)").unwrap(),
-            Regex::new(r"(?:const|let|var)\s+(\w+)\s*=").unwrap(),
+            Regex::new(r"(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?\([^)]*\)\s*=>").unwrap(),
             Regex::new(r"def\s+(\w+)").unwrap(),
             Regex::new(r"fn\s+(\w+)").unwrap(),
-            Regex::new(r"^\s*(\w+)\s*\(").unwrap(),
+            Regex::new(r"^\s*(\w+)\s*\([^)]*\)\s*\{").unwrap(),
+            // Class methods
+            Regex::new(r"^\s*(?:async\s+)?(\w+)\s*\([^)]*\)\s*\{").unwrap(),
         ];
 
-        for i in (0..line.saturating_sub(1)).rev() {
+        // Search backwards up to 100 lines or start of file
+        let start = line.saturating_sub(100);
+        for i in (start..line.saturating_sub(1)).rev() {
             if i >= lines.len() {
                 continue;
             }
-            
+
             let line_content = lines[i];
             for pattern in &function_patterns {
                 if let Some(captures) = pattern.captures(line_content) {
@@ -137,7 +145,8 @@ impl CallExtractor {
             }
         }
 
-        Ok("unknown".to_string())
+        // If no containing function found, it might be top-level code
+        Ok("<top-level>".to_string())
     }
 }
 
