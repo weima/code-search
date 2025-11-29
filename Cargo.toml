@@ -1,0 +1,30 @@
+[package]
+name = "cs"
+version = "0.1.0"
+edition = "2021"
+authors = ["Code Search Contributors"]
+description = "Intelligent code search tool for tracing text (UI text, function names, variables) to implementation code"
+license = "Apache-2.0"
+repository = "https://github.com/weima/code-search"
+readme = "README.md"
+keywords = ["cli", "i18n", "search", "translation", "code-search"]
+categories = ["command-line-utilities", "development-tools"]
+
+[[bin]]
+name = "cs"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4.4", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9"
+regex = "1.10"
+anyhow = "1.0"
+thiserror = "1.0"
+walkdir = "2.4"
+
+[dev-dependencies]
+assert_cmd = "2.0"
+predicates = "3.0"
+tempfile = "3.8"
+criterion = "0.5"
