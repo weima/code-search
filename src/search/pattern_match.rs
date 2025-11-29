@@ -1,7 +1,7 @@
 use crate::config::default_patterns;
+use crate::error::Result;
 use crate::parse::translation::TranslationEntry;
 use crate::search::text_search::TextSearcher;
-use anyhow::Result;
 use regex::Regex;
 use std::path::PathBuf;
 

@@ -94,3 +94,28 @@ fn test_cli_version() {
         .success()
         .stdout(predicate::str::contains("cs"));
 }
+
+#[test]
+fn test_cli_multiple_translation_files() {
+    let mut cmd = Command::cargo_bin("cs").unwrap();
+    cmd.arg("ajouter nouveau")
+        .current_dir("tests/fixtures/rails-app")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("'ajouter nouveau'"))
+        .stdout(predicate::str::contains("fr.yml"))
+        .stdout(predicate::str::contains("invoice.labels.add_new"));
+}
+
+#[test]
+fn test_cli_multiple_code_references() {
+    let mut cmd = Command::cargo_bin("cs").unwrap();
+    cmd.arg("add new")
+        .current_dir("tests/fixtures/rails-app")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("invoice_list.ts"))
+        .stdout(predicate::str::contains("invoices.ts"))
+        // Should show multiple code references
+        .stdout(predicate::str::contains("Code:").count(4));
+}

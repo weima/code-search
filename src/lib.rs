@@ -1,14 +1,15 @@
 pub mod config;
+pub mod error;
 pub mod output;
 pub mod parse;
 pub mod search;
 pub mod tree;
 
-use anyhow::{Context, Result};
 use std::path::PathBuf;
 
 // Re-export commonly used types
 pub use config::default_patterns;
+pub use error::{Result, SearchError};
 pub use output::TreeFormatter;
 pub use parse::{KeyExtractor, TranslationEntry, YamlParser};
 pub use search::{CodeReference, Match, PatternMatcher, TextSearcher};
@@ -65,9 +66,7 @@ pub fn run_search(query: SearchQuery) -> Result<SearchResult> {
 
     // Step 1: Extract translation entries matching the search text
     let extractor = KeyExtractor::new();
-    let translation_entries = extractor
-        .extract(&base_dir, &query.text)
-        .context("Failed to extract translation entries")?;
+    let translation_entries = extractor.extract(&base_dir, &query.text)?;
 
     if translation_entries.is_empty() {
         return Ok(SearchResult {
@@ -82,9 +81,7 @@ pub fn run_search(query: SearchQuery) -> Result<SearchResult> {
     let mut all_code_refs = Vec::new();
 
     for entry in &translation_entries {
-        let code_refs = matcher
-            .find_usages(&entry.key)
-            .context(format!("Failed to find usages for key: {}", entry.key))?;
+        let code_refs = matcher.find_usages(&entry.key)?;
         all_code_refs.extend(code_refs);
     }
 

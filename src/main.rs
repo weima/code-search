@@ -101,13 +101,35 @@ fn main() {
                     let tree = cs::ReferenceTreeBuilder::build(&result);
                     let formatter = cs::TreeFormatter::new();
                     let output = formatter.format(&tree);
-                    
+
                     println!("{}", output);
                 }
             }
             Err(e) => {
-                eprintln!("Error: {}", e);
-                process::exit(1);
+                // Handle errors with user-friendly messages
+                use cs::SearchError;
+                match e {
+                    SearchError::RipgrepNotFound => {
+                        eprintln!("{}", e);
+                        process::exit(1);
+                    }
+                    SearchError::NoTranslationFiles { .. } => {
+                        eprintln!("{}", e);
+                        process::exit(1);
+                    }
+                    SearchError::YamlParseError { .. } => {
+                        eprintln!("{}", e);
+                        process::exit(1);
+                    }
+                    SearchError::NoCodeReferences { .. } => {
+                        eprintln!("{}", e);
+                        process::exit(1);
+                    }
+                    _ => {
+                        eprintln!("Error: {}", e);
+                        process::exit(1);
+                    }
+                }
             }
         }
     }
