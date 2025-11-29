@@ -156,8 +156,7 @@ fn test_case_sensitive_flag_accepted() {
     let mut cmd = Command::cargo_bin("cs").unwrap();
     cmd.args(["Test", "--case-sensitive"])
         .assert()
-        .failure() // Will fail because implementation not done, but flag is accepted
-        .stderr(predicate::str::contains("not yet implemented"));
+        .success();
 }
 
 #[test]
