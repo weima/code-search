@@ -7,9 +7,10 @@ fn test_extract_calls_from_js_function() {
         name: "processData".to_string(),
         file: PathBuf::from("tests/fixtures/call-graph/sample.js"),
         line: 3,
+        body: "".to_string(),
     };
 
-    let extractor = CallExtractor::new();
+    let extractor = CallExtractor::new(std::env::current_dir().unwrap());
     let calls = extractor.extract_calls(&func).unwrap();
 
     // Should find validateInput, transformData, and saveToDatabase
@@ -27,9 +28,10 @@ fn test_extract_calls_filters_keywords() {
         name: "validateInput".to_string(),
         file: PathBuf::from("tests/fixtures/call-graph/sample.js"),
         line: 10,
+        body: "".to_string(),
     };
 
-    let extractor = CallExtractor::new();
+    let extractor = CallExtractor::new(std::env::current_dir().unwrap());
     let calls = extractor.extract_calls(&func).unwrap();
 
     // Should filter out 'if' keyword
@@ -45,9 +47,10 @@ fn test_extract_calls_from_ruby_function() {
         name: "process_order".to_string(),
         file: PathBuf::from("tests/fixtures/call-graph/sample.rb"),
         line: 3,
+        body: "".to_string(),
     };
 
-    let extractor = CallExtractor::new();
+    let extractor = CallExtractor::new(std::env::current_dir().unwrap());
     let calls = extractor.extract_calls(&func).unwrap();
 
     // Should find called functions
@@ -58,7 +61,7 @@ fn test_extract_calls_from_ruby_function() {
 
 #[test]
 fn test_find_callers_of_function() {
-    let extractor = CallExtractor::new();
+    let extractor = CallExtractor::new(std::env::current_dir().unwrap());
 
     // Find all callers of processData function
     let callers = extractor.find_callers("processData").unwrap();
@@ -73,7 +76,7 @@ fn test_find_callers_of_function() {
 
 #[test]
 fn test_find_callers_of_ruby_function() {
-    let extractor = CallExtractor::new();
+    let extractor = CallExtractor::new(std::env::current_dir().unwrap());
 
     // Find all callers of process_order function
     let callers = extractor.find_callers("process_order").unwrap();
@@ -88,7 +91,7 @@ fn test_find_callers_of_ruby_function() {
 
 #[test]
 fn test_function_finder_js() {
-    let finder = FunctionFinder::new();
+    let finder = FunctionFinder::new(std::env::current_dir().unwrap());
     let defs = finder.find_definition("processData").unwrap();
 
     assert!(!defs.is_empty());
@@ -98,7 +101,7 @@ fn test_function_finder_js() {
 
 #[test]
 fn test_function_finder_ruby() {
-    let finder = FunctionFinder::new();
+    let finder = FunctionFinder::new(std::env::current_dir().unwrap());
     let defs = finder.find_definition("process_order").unwrap();
 
     assert!(!defs.is_empty());
@@ -108,7 +111,7 @@ fn test_function_finder_ruby() {
 
 #[test]
 fn test_keywords_filtered_correctly() {
-    let extractor = CallExtractor::new();
+    let extractor = CallExtractor::new(std::env::current_dir().unwrap());
 
     // Verify common keywords are in the filter list
     assert!(extractor.keywords.contains("if"));
@@ -119,7 +122,7 @@ fn test_keywords_filtered_correctly() {
 
 #[test]
 fn test_caller_info_structure() {
-    let extractor = CallExtractor::new();
+    let extractor = CallExtractor::new(std::env::current_dir().unwrap());
     let callers = extractor.find_callers("validateInput").unwrap();
 
     // Verify CallerInfo contains required fields

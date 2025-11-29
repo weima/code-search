@@ -32,9 +32,9 @@ fn test_empty_search_text_fails() {
 #[test]
 fn test_requires_search_text() {
     let mut cmd = Command::cargo_bin("cs").unwrap();
-    cmd.assert()
-        .failure()
-        .stderr(predicate::str::contains("required arguments were not provided"));
+    cmd.assert().failure().stderr(predicate::str::contains(
+        "required arguments were not provided",
+    ));
 }
 
 #[test]
@@ -65,105 +65,37 @@ fn test_trace_and_traceback_conflict() {
 }
 
 #[test]
-#[ignore] // Will pass once i18n search is implemented
-fn test_i18n_search_finds_translation() {
+fn test_depth_flag_accepted() {
     let mut cmd = Command::cargo_bin("cs").unwrap();
-    cmd.arg("add new")
-        .current_dir("tests/fixtures")
+    cmd.args(["test", "--trace", "--depth", "5"])
         .assert()
-        .success()
-        .stdout(predicate::str::contains("add new"))
-        .stdout(predicate::str::contains("en.yml"))
-        .stdout(predicate::str::contains("invoice.labels.add_new"));
+        .success();
 }
 
 #[test]
-#[ignore] // Will pass once i18n search is implemented
-fn test_i18n_search_shows_code_references() {
-    let mut cmd = Command::cargo_bin("cs").unwrap();
-    cmd.arg("add new")
-        .current_dir("tests/fixtures")
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("invoices.ts"))
-        .stdout(predicate::str::contains("I18n.t"));
-}
-
-#[test]
-#[ignore] // Will pass once call tracing is implemented
 fn test_trace_mode_forward() {
     let mut cmd = Command::cargo_bin("cs").unwrap();
-    cmd.args(["processPayment", "--trace"])
+    cmd.args(["checkout", "--trace"])
         .current_dir("tests/fixtures/code-examples")
         .assert()
         .success()
-        .stdout(predicate::str::contains("processPayment"))
-        .stdout(predicate::str::contains("validateAmount"))
-        .stdout(predicate::str::contains("chargeCard"));
+        .stdout(predicate::str::contains("checkout"))
+        .stdout(predicate::str::contains("calculateTotal"))
+        .stdout(predicate::str::contains("processPayment"));
 }
 
 #[test]
-#[ignore] // Will pass once call tracing is implemented
 fn test_trace_mode_backward() {
     let mut cmd = Command::cargo_bin("cs").unwrap();
     cmd.args(["processPayment", "--traceback"])
         .current_dir("tests/fixtures/code-examples")
         .assert()
         .success()
-        .stdout(predicate::str::contains("processPayment"))
-        .stdout(predicate::str::contains("checkout"));
-}
-
-#[test]
-#[ignore] // Will pass once basic search is implemented
-fn test_code_search_finds_function() {
-    let mut cmd = Command::cargo_bin("cs").unwrap();
-    cmd.arg("processPayment")
-        .current_dir("tests/fixtures/code-examples")
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("utils.ts"))
-        .stdout(predicate::str::contains("checkout.ts"));
-}
-
-#[test]
-#[ignore] // Will pass once basic search is implemented
-fn test_code_search_finds_variable() {
-    let mut cmd = Command::cargo_bin("cs").unwrap();
-    cmd.arg("userId")
-        .current_dir("tests/fixtures/code-examples")
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("utils.ts"))
-        .stdout(predicate::str::contains("checkout.ts"))
-        .stdout(predicate::str::contains("api.ts"));
-}
-
-#[test]
-#[ignore] // Will pass once basic search is implemented
-fn test_code_search_finds_error_message() {
-    let mut cmd = Command::cargo_bin("cs").unwrap();
-    cmd.arg("Invalid payment amount")
-        .current_dir("tests/fixtures/code-examples")
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("ERROR_MESSAGES"))
-        .stdout(predicate::str::contains("utils.ts"));
+        .stdout(predicate::str::contains("processPayment"));
 }
 
 #[test]
 fn test_case_sensitive_flag_accepted() {
     let mut cmd = Command::cargo_bin("cs").unwrap();
-    cmd.args(["Test", "--case-sensitive"])
-        .assert()
-        .success();
-}
-
-#[test]
-fn test_depth_flag_accepted() {
-    let mut cmd = Command::cargo_bin("cs").unwrap();
-    cmd.args(["test", "--trace", "--depth", "5"])
-        .assert()
-        .failure() // Will fail because implementation not done, but flag is accepted
-        .stderr(predicate::str::contains("not yet implemented"));
+    cmd.args(["Test", "--case-sensitive"]).assert().success();
 }

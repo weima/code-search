@@ -1,3 +1,4 @@
+use crate::trace::{CallNode, CallTree};
 use crate::tree::{NodeType, ReferenceTree, TreeNode};
 use crate::SearchResult;
 use colored::*;
@@ -69,6 +70,47 @@ impl TreeFormatter {
         self.format_node(&tree.root, &mut output, "", true, true);
         output
     }
+
+    pub fn format_trace_tree(&self, tree: &CallTree) -> String {
+        let mut output = String::new();
+        self.format_call_node(&tree.root, &mut output, "", true, true);
+        output
+    }
+
+    fn format_call_node(
+        &self,
+        node: &CallNode,
+        output: &mut String,
+        prefix: &str,
+        is_last: bool,
+        is_root: bool,
+    ) {
+        if !is_root {
+            output.push_str(prefix);
+            output.push_str(if is_last { "└─> " } else { "├─> " });
+        }
+
+        let content = format!(
+            "{} ({}:{})",
+            node.def.name.bold(),
+            node.def.file.display(),
+            node.def.line
+        );
+        output.push_str(&content);
+        output.push('\n');
+
+        let child_count = node.children.len();
+        for (i, child) in node.children.iter().enumerate() {
+            let is_last_child = i == child_count - 1;
+            let child_prefix = if is_root {
+                String::new()
+            } else {
+                format!("{}{}   ", prefix, if is_last { " " } else { "│" })
+            };
+            self.format_call_node(child, output, &child_prefix, is_last_child, false);
+        }
+    }
+
 
     /// Format a single node and its children
     fn format_node(

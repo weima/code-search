@@ -4,7 +4,9 @@ use crate::error::Result;
 use std::path::Path;
 use walkdir::WalkDir;
 
-use super::{TranslationEntry, YamlParser};
+use super::translation::TranslationEntry;
+use super::yaml_parser::YamlParser;
+use super::json_parser::JsonParser;
 
 /// `KeyExtractor` provides functionality to search translation entries across
 /// multiple YAML translation files, returning the full dot‑notation key path,
@@ -32,8 +34,16 @@ impl KeyExtractor {
         {
             let path = entry.path();
             if let Some(ext) = path.extension() {
-                if ext == "yml" || ext == "yaml" {
+                let ext_str = ext.to_string_lossy();
+                if ext_str == "yml" || ext_str == "yaml" {
                     let entries = YamlParser::parse_file(path)?;
+                    for e in entries {
+                        if e.value.to_lowercase().contains(&lowered) {
+                            matches.push(e);
+                        }
+                    }
+                } else if ext_str == "json" {
+                    let entries = JsonParser::parse_file(path)?;
                     for e in entries {
                         if e.value.to_lowercase().contains(&lowered) {
                             matches.push(e);
@@ -171,7 +181,7 @@ mod tests {
     }
 
     #[test]
-    fn test_key_extractor_ignores_non_yaml() -> Result<()> {
+    fn test_key_extractor_supports_json_and_yaml() -> Result<()> {
         let dir = tempdir()?;
         let yaml_path = dir.path().join("test.yml");
         let txt_path = dir.path().join("test.txt");
@@ -184,9 +194,13 @@ mod tests {
         let extractor = KeyExtractor::new();
         let results = extractor.extract(dir.path(), "test")?;
 
-        // Should only find the YAML file
-        assert_eq!(results.len(), 1);
-        assert_eq!(results[0].file.extension().unwrap(), "yml");
+        // Should find both YAML and JSON files
+        assert_eq!(results.len(), 2);
+        let extensions: Vec<_> = results.iter()
+            .map(|e| e.file.extension().unwrap().to_string_lossy().to_string())
+            .collect();
+        assert!(extensions.contains(&"yml".to_string()));
+        assert!(extensions.contains(&"json".to_string()));
 
         Ok(())
     }
