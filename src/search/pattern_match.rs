@@ -23,17 +23,17 @@ pub struct PatternMatcher {
 
 impl PatternMatcher {
     /// Create a new PatternMatcher with default patterns
-    pub fn new() -> Self {
+    pub fn new(base_dir: PathBuf) -> Self {
         Self {
-            searcher: TextSearcher::new(),
+            searcher: TextSearcher::new(base_dir),
             patterns: default_patterns(),
         }
     }
 
     /// Create a PatternMatcher with custom patterns
-    pub fn with_patterns(patterns: Vec<Regex>) -> Self {
+    pub fn with_patterns(patterns: Vec<Regex>, base_dir: PathBuf) -> Self {
         Self {
-            searcher: TextSearcher::new(),
+            searcher: TextSearcher::new(base_dir),
             patterns,
         }
     }
@@ -95,7 +95,7 @@ impl PatternMatcher {
 
 impl Default for PatternMatcher {
     fn default() -> Self {
-        Self::new()
+        Self::new(std::env::current_dir().unwrap())
     }
 }
 
@@ -105,7 +105,7 @@ mod tests {
 
     #[test]
     fn test_pattern_matcher_creation() {
-        let matcher = PatternMatcher::new();
+        let matcher = PatternMatcher::new(std::env::current_dir().unwrap());
         assert!(!matcher.patterns.is_empty());
     }
 
@@ -129,7 +129,7 @@ mod tests {
         let custom_patterns = vec![
             Regex::new(r#"custom\.t\(['"]([^'"]+)['"]\)"#).unwrap(),
         ];
-        let matcher = PatternMatcher::with_patterns(custom_patterns);
+        let matcher = PatternMatcher::with_patterns(custom_patterns, std::env::current_dir().unwrap());
         assert_eq!(matcher.patterns.len(), 1);
     }
 }
