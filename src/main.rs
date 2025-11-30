@@ -88,11 +88,70 @@ fn main() {
                 print!("{}", output);
             }
             Ok(None) => {
-                println!("Function '{}' not found.", cli.search_text);
+                eprintln!("{} Function '{}' not found in codebase",
+                    "Error:".red().bold(),
+                    cli.search_text.bold());
+                eprintln!();
+                eprintln!("{}", "Possible reasons:".yellow().bold());
+                eprintln!("  • The function doesn't exist in the current directory");
+                eprintln!("  • The function name is misspelled");
+                eprintln!("  • The function is defined in a different directory");
+                eprintln!();
+                eprintln!("{}", "Next steps:".green().bold());
+                eprintln!("  1. Verify function name: {}", format!("rg 'function {}'", cli.search_text).cyan());
+                eprintln!("  2. Check if you're in the right directory: {}", "pwd".cyan());
+                eprintln!("  3. Search for similar function names: {}", format!("rg 'function.*{}'", cli.search_text).cyan());
+                process::exit(1);
             }
             Err(e) => {
-                eprintln!("Error during trace: {}", e);
-                process::exit(1);
+                // Handle errors with user-friendly messages and helpful guidance
+                use cs::SearchError;
+                use colored::Colorize;
+
+                match e {
+                    SearchError::RipgrepNotFound => {
+                        eprintln!("{} {}", "Error:".red().bold(), e);
+                        eprintln!();
+                        eprintln!("{}", "Installation:".yellow().bold());
+                        eprintln!("  macOS:    brew install ripgrep");
+                        eprintln!("  Ubuntu:   apt-get install ripgrep");
+                        eprintln!("  Fedora:   dnf install ripgrep");
+                        eprintln!("  Windows:  choco install ripgrep");
+                        eprintln!();
+                        eprintln!("Or visit: https://github.com/BurntSushi/ripgrep#installation");
+                        process::exit(1);
+                    }
+                    SearchError::Io(io_err) => {
+                        eprintln!("{} {}", "IO Error:".red().bold(), io_err);
+                        eprintln!();
+                        eprintln!("{}", "Next steps:".green().bold());
+                        eprintln!("  • Check file permissions in the current directory");
+                        eprintln!("  • Verify you have read access to source files");
+                        eprintln!("  • Ensure the directory structure is accessible");
+                        process::exit(1);
+                    }
+                    SearchError::RipgrepExecutionFailed(msg) => {
+                        eprintln!("{} {}", "Error:".red().bold(), msg);
+                        eprintln!();
+                        eprintln!("{}", "Next steps:".green().bold());
+                        eprintln!("  • Verify ripgrep is properly installed: {}", "rg --version".cyan());
+                        eprintln!("  • Check if the directory is accessible");
+                        eprintln!("  • Try running the trace from the project root directory");
+                        process::exit(1);
+                    }
+                    _ => {
+                        eprintln!("{} {}", "Error during call trace:".red().bold(), e);
+                        eprintln!();
+                        eprintln!("{}", "Troubleshooting tips:".yellow().bold());
+                        eprintln!("  • Verify the function name is correct");
+                        eprintln!("  • Check if source files are accessible");
+                        eprintln!("  • Try running from the project root directory");
+                        eprintln!();
+                        eprintln!("{}", "If this error persists, please report it at:".yellow());
+                        eprintln!("https://github.com/weima/code-search/issues");
+                        process::exit(1);
+                    }
+                }
             }
         }
     } else {
