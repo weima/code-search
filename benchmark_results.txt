@@ -1,0 +1,164 @@
+   Compiling cs v0.1.0 (/Users/weima/tools/code-search)
+    Finished `bench` profile [optimized] target(s) in 1.75s
+     Running benches/search_benchmark.rs (target/release/deps/search_benchmark-21652f8debf88fb8)
+Gnuplot not found, using plotters backend
+Benchmarking text_search/small_project
+Benchmarking text_search/small_project: Warming up for 3.0000 s
+Benchmarking text_search/small_project: Collecting 100 samples in estimated 5.2723 s (500 iterations)
+Benchmarking text_search/small_project: Analyzing
+text_search/small_project
+                        time:   [10.018 ms 10.640 ms 11.376 ms]
+Found 18 outliers among 100 measurements (18.00%)
+  12 (12.00%) low mild
+  1 (1.00%) high mild
+  5 (5.00%) high severe
+Benchmarking text_search/medium_project
+Benchmarking text_search/medium_project: Warming up for 3.0000 s
+Benchmarking text_search/medium_project: Collecting 100 samples in estimated 5.3236 s (500 iterations)
+Benchmarking text_search/medium_project: Analyzing
+text_search/medium_project
+                        time:   [10.125 ms 10.742 ms 11.487 ms]
+Found 16 outliers among 100 measurements (16.00%)
+  11 (11.00%) low mild
+  5 (5.00%) high severe
+Benchmarking text_search/large_project
+Benchmarking text_search/large_project: Warming up for 3.0000 s
+Benchmarking text_search/large_project: Collecting 100 samples in estimated 5.1985 s (500 iterations)
+Benchmarking text_search/large_project: Analyzing
+text_search/large_project
+                        time:   [9.5980 ms 10.180 ms 10.880 ms]
+Found 10 outliers among 100 measurements (10.00%)
+  5 (5.00%) low mild
+  5 (5.00%) high severe
+
+Benchmarking key_extraction/small_yaml
+Benchmarking key_extraction/small_yaml: Warming up for 3.0000 s
+Benchmarking key_extraction/small_yaml: Collecting 100 samples in estimated 5.5468 s (45k iterations)
+Benchmarking key_extraction/small_yaml: Analyzing
+key_extraction/small_yaml
+                        time:   [123.05 µs 123.31 µs 123.60 µs]
+Found 14 outliers among 100 measurements (14.00%)
+  2 (2.00%) low mild
+  6 (6.00%) high mild
+  6 (6.00%) high severe
+Benchmarking key_extraction/medium_yaml
+Benchmarking key_extraction/medium_yaml: Warming up for 3.0000 s
+Benchmarking key_extraction/medium_yaml: Collecting 100 samples in estimated 5.5745 s (45k iterations)
+Benchmarking key_extraction/medium_yaml: Analyzing
+key_extraction/medium_yaml
+                        time:   [123.39 µs 123.70 µs 124.10 µs]
+Found 9 outliers among 100 measurements (9.00%)
+  4 (4.00%) high mild
+  5 (5.00%) high severe
+
+Benchmarking pattern_matching/small_codebase
+Benchmarking pattern_matching/small_codebase: Warming up for 3.0000 s
+Benchmarking pattern_matching/small_codebase: Collecting 100 samples in estimated 5.5533 s (500 iterations)
+Benchmarking pattern_matching/small_codebase: Analyzing
+pattern_matching/small_codebase
+                        time:   [10.277 ms 10.871 ms 11.586 ms]
+Found 16 outliers among 100 measurements (16.00%)
+  11 (11.00%) low mild
+  5 (5.00%) high severe
+Benchmarking pattern_matching/medium_codebase
+Benchmarking pattern_matching/medium_codebase: Warming up for 3.0000 s
+Benchmarking pattern_matching/medium_codebase: Collecting 100 samples in estimated 6.4836 s (300 iterations)
+Benchmarking pattern_matching/medium_codebase: Analyzing
+pattern_matching/medium_codebase
+                        time:   [20.659 ms 21.872 ms 23.288 ms]
+Found 23 outliers among 100 measurements (23.00%)
+  2 (2.00%) low severe
+  14 (14.00%) low mild
+  7 (7.00%) high severe
+
+Benchmarking end_to_end_search/small_project
+Benchmarking end_to_end_search/small_project: Warming up for 3.0000 s
+
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 6.5s, or reduce sample count to 70.
+Benchmarking end_to_end_search/small_project: Collecting 100 samples in estimated 6.5040 s (100 iterations)
+Benchmarking end_to_end_search/small_project: Analyzing
+end_to_end_search/small_project
+                        time:   [62.861 ms 66.273 ms 70.220 ms]
+Found 16 outliers among 100 measurements (16.00%)
+  8 (8.00%) low mild
+  8 (8.00%) high severe
+Benchmarking end_to_end_search/medium_project_case_sensitive
+Benchmarking end_to_end_search/medium_project_case_sensitive: Warming up for 3.0000 s
+
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 6.5s, or reduce sample count to 70.
+Benchmarking end_to_end_search/medium_project_case_sensitive: Collecting 100 samples in estimated 6.4807 s (100 iterations)
+Benchmarking end_to_end_search/medium_project_case_sensitive: Analyzing
+end_to_end_search/medium_project_case_sensitive
+                        time:   [62.379 ms 65.899 ms 70.012 ms]
+Found 21 outliers among 100 measurements (21.00%)
+  14 (14.00%) low mild
+  7 (7.00%) high severe
+Benchmarking end_to_end_search/large_project_all_fixtures
+Benchmarking end_to_end_search/large_project_all_fixtures: Warming up for 3.0000 s
+
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 89.9s, or reduce sample count to 10.
+Benchmarking end_to_end_search/large_project_all_fixtures: Collecting 100 samples in estimated 89.855 s (100 iterations)
+Benchmarking end_to_end_search/large_project_all_fixtures: Analyzing
+end_to_end_search/large_project_all_fixtures
+                        time:   [897.68 ms 902.58 ms 907.04 ms]
+Found 10 outliers among 100 measurements (10.00%)
+  4 (4.00%) low severe
+  6 (6.00%) low mild
+
+Benchmarking call_tracing/forward_depth_1
+Benchmarking call_tracing/forward_depth_1: Warming up for 3.0000 s
+
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 16.7s, or reduce sample count to 20.
+Benchmarking call_tracing/forward_depth_1: Collecting 100 samples in estimated 16.704 s (100 iterations)
+Benchmarking call_tracing/forward_depth_1: Analyzing
+call_tracing/forward_depth_1
+                        time:   [161.57 ms 166.32 ms 171.42 ms]
+Found 24 outliers among 100 measurements (24.00%)
+  7 (7.00%) low mild
+  17 (17.00%) high severe
+Benchmarking call_tracing/forward_depth_3
+Benchmarking call_tracing/forward_depth_3: Warming up for 3.0000 s
+
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 53.8s, or reduce sample count to 10.
+Benchmarking call_tracing/forward_depth_3: Collecting 100 samples in estimated 53.793 s (100 iterations)
+Benchmarking call_tracing/forward_depth_3: Analyzing
+call_tracing/forward_depth_3
+                        time:   [533.91 ms 540.14 ms 546.35 ms]
+Benchmarking call_tracing/backward_depth_3
+Benchmarking call_tracing/backward_depth_3: Warming up for 3.0000 s
+
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 39.3s, or reduce sample count to 10.
+Benchmarking call_tracing/backward_depth_3: Collecting 100 samples in estimated 39.282 s (100 iterations)
+Benchmarking call_tracing/backward_depth_3: Analyzing
+call_tracing/backward_depth_3
+                        time:   [386.31 ms 393.04 ms 400.32 ms]
+Found 2 outliers among 100 measurements (2.00%)
+  2 (2.00%) high mild
+
+Benchmarking project_sizes/small
+Benchmarking project_sizes/small: Warming up for 3.0000 s
+
+Warning: Unable to complete 100 samples in 5.0s. You may wish to increase target time to 6.6s, or reduce sample count to 70.
+Benchmarking project_sizes/small: Collecting 100 samples in estimated 6.5626 s (100 iterations)
+Benchmarking project_sizes/small: Analyzing
+project_sizes/small     time:   [62.617 ms 66.090 ms 70.197 ms]
+Found 13 outliers among 100 measurements (13.00%)
+  7 (7.00%) low mild
+  6 (6.00%) high severe
+Benchmarking project_sizes/medium
+Benchmarking project_sizes/medium: Warming up for 3.0000 s
+Benchmarking project_sizes/medium: Collecting 100 samples in estimated 5.0468 s (500k iterations)
+Benchmarking project_sizes/medium: Analyzing
+project_sizes/medium    time:   [10.067 µs 10.088 µs 10.111 µs]
+Found 10 outliers among 100 measurements (10.00%)
+  8 (8.00%) high mild
+  2 (2.00%) high severe
+Benchmarking project_sizes/large
+Benchmarking project_sizes/large: Warming up for 3.0000 s
+Benchmarking project_sizes/large: Collecting 100 samples in estimated 5.1855 s (20k iterations)
+Benchmarking project_sizes/large: Analyzing
+project_sizes/large     time:   [255.55 µs 256.47 µs 257.68 µs]
+Found 8 outliers among 100 measurements (8.00%)
+  4 (4.00%) high mild
+  4 (4.00%) high severe
+
