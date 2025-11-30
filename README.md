@@ -77,7 +77,7 @@ $ cs 'bar' --trace --depth 5
 - **Tree Visualization**: Clear visual representation of the reference chain
 - **Depth Control**: Configurable trace depth to prevent explosion in large codebases
 - **Cycle Detection**: Handles recursive/circular calls without hanging
-- **Lightweight**: Built on ripgrep for fast performance
+- **Lightweight**: Uses ripgrep library for fast performance (no external dependencies)
 - **No IDE Required**: Works in any terminal environment
 
 ## Use Cases
@@ -205,15 +205,12 @@ views/invoice.erb.rails:45:<%= t('invoice.labels.add_new') %>
 ## Architecture
 
 Built on a foundation of proven tools:
-- **ripgrep**: Fast text searching
+- **ripgrep library**: Embedded fast text searching (no external installation required)
 - **Regex patterns**: Function definition and call detection
 - **YAML/JSON parsers**: Translation file processing
 - **Tree builders**: Visual output formatting
 
 ## Installation
-
-### Prerequisites
-- [ripgrep](https://github.com/BurntSushi/ripgrep#installation) must be installed
 
 ### From Source (Rust)
 ```bash
