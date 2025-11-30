@@ -35,3 +35,7 @@ criterion = "0.5"
 [[test]]
 name = "graph_builder_test"
 path = "tests/graph_builder_test.rs"
+
+[[bench]]
+name = "search_benchmark"
+harness = false
