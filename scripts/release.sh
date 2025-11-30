@@ -55,8 +55,16 @@ if [ "$COMMAND" == "prepare" ]; then
     git add Cargo.toml npm/package.json npm/install.js CHANGELOG.md
     git commit -m "chore: bump versions to $VERSION"
 
-    echo "Done! Now push this branch and create a PR:"
-    echo "  git push -u origin $BRANCH_NAME"
+    echo "Pushing branch $BRANCH_NAME..."
+    git push -u origin "$BRANCH_NAME"
+
+    if command -v gh &> /dev/null; then
+        echo "Creating Pull Request..."
+        gh pr create --title "chore: bump versions to $VERSION" --body "Automated PR to bump versions for release $VERSION." --base main --head "$BRANCH_NAME"
+    else
+        echo "GitHub CLI (gh) not found. Please create PR manually."
+    fi
+    
     exit 0
 fi
 
@@ -65,29 +73,61 @@ if [ "$COMMAND" == "publish" ]; then
     echo "=== Publishing Release $VERSION ==="
     check_clean_git
 
-    # 1. Cargo
+    # 1. Check/Create Tag
+    if git rev-parse "$VERSION" >/dev/null 2>&1; then
+        echo "Tag $VERSION already exists."
+    else
+        echo "Creating tag $VERSION..."
+        git tag "$VERSION"
+        git push origin "$VERSION"
+        echo "Pushed tag $VERSION. GitHub Action should be running..."
+    fi
+
+    # 2. Wait for GitHub Release Asset (Homebrew needs this)
+    URL="https://github.com/weima/code-search/releases/download/${VERSION}/cs-darwin-amd64"
+    TEMP_FILE="cs-darwin-amd64-temp"
+    
+    echo "Waiting for GitHub Release asset to be available..."
+    echo "Target: $URL"
+    
+    MAX_RETRIES=30 # 5 minutes (30 * 10s)
+    COUNT=0
+    
+    while [ $COUNT -lt $MAX_RETRIES ]; do
+        HTTP_CODE=$(curl -L -o "$TEMP_FILE" -w "%{http_code}" "$URL")
+        if [ "$HTTP_CODE" == "200" ]; then
+            echo "Asset downloaded successfully!"
+            break
+        fi
+        
+        echo "Asset not ready yet (HTTP $HTTP_CODE). Waiting 10s... ($((COUNT+1))/$MAX_RETRIES)"
+        sleep 10
+        COUNT=$((COUNT+1))
+    done
+
+    if [ ! -f "$TEMP_FILE" ] || [ "$HTTP_CODE" != "200" ]; then
+        echo "Error: Timed out waiting for release asset."
+        rm -f "$TEMP_FILE"
+        exit 1
+    fi
+
+    # 3. Cargo (Optional - uncomment to enable)
     echo "Publishing to Crates.io..."
-    # cargo publish --dry-run
     # cargo publish
 
-    # 2. NPM
+    # 4. NPM (Optional - uncomment to enable)
     echo "Publishing to NPM..."
     # cd npm && npm publish
 
-    # 3. Homebrew
+    # 5. Homebrew Update
     echo "Updating Homebrew Formula..."
     BRANCH_NAME="homebrew-$VERSION"
-    git checkout -b "$BRANCH_NAME"
-
-    URL="https://github.com/weima/code-search/releases/download/${VERSION}/cs-darwin-amd64"
-    TEMP_FILE="cs-darwin-amd64-temp"
-
-    echo "Downloading $URL..."
-    curl -L -o "$TEMP_FILE" "$URL"
     
-    if [ ! -f "$TEMP_FILE" ]; then
-        echo "Error: Failed to download file. Did the GitHub Release finish building?"
-        exit 1
+    # Check if branch exists, if so switch to it, else create
+    if git show-ref --verify --quiet "refs/heads/$BRANCH_NAME"; then
+        git checkout "$BRANCH_NAME"
+    else
+        git checkout -b "$BRANCH_NAME"
     fi
 
     SHA=$(shasum -a 256 "$TEMP_FILE" | awk '{print $1}')
@@ -101,8 +141,18 @@ if [ "$COMMAND" == "publish" ]; then
     git add Formula/cs.rb
     git commit -m "chore: update homebrew formula to $VERSION"
 
-    echo "Done! Now push this branch and create a PR:"
-    echo "  git push -u origin $BRANCH_NAME"
+    echo "Pushing branch $BRANCH_NAME..."
+    git push -u origin "$BRANCH_NAME"
+
+    # 6. Create PR
+    if command -v gh &> /dev/null; then
+        echo "Creating Pull Request..."
+        gh pr create --title "chore: update homebrew formula to $VERSION" --body "Automated PR to update Homebrew formula SHA256 for release $VERSION." --base main --head "$BRANCH_NAME"
+    else
+        echo "GitHub CLI (gh) not found. Please create PR manually."
+    fi
+
+    echo "Done! Release $VERSION published."
     exit 0
 fi
 
