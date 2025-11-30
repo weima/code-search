@@ -25,6 +25,11 @@ thiserror = "1.0"
 walkdir = "2.4"
 colored = "2.0"
 yaml-rust = "0.4"
+# Ripgrep as a library
+grep-searcher = "0.1"
+grep-matcher = "0.1"
+grep-regex = "0.1"
+ignore = "0.4"
 
 [dev-dependencies]
 assert_cmd = "2.0"
@@ -35,6 +40,18 @@ criterion = "0.5"
 [[test]]
 name = "graph_builder_test"
 path = "tests/graph_builder_test.rs"
+
+[[test]]
+name = "integration_basic_search"
+path = "tests/integration/basic_search.rs"
+
+[[test]]
+name = "integration_multi_match"
+path = "tests/integration/multi_match.rs"
+
+[[test]]
+name = "integration_error_cases"
+path = "tests/integration/error_cases.rs"
 
 [[bench]]
 name = "search_benchmark"

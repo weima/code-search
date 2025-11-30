@@ -109,18 +109,6 @@ fn main() {
                 use colored::Colorize;
 
                 match e {
-                    SearchError::RipgrepNotFound => {
-                        eprintln!("{} {}", "Error:".red().bold(), e);
-                        eprintln!();
-                        eprintln!("{}", "Installation:".yellow().bold());
-                        eprintln!("  macOS:    brew install ripgrep");
-                        eprintln!("  Ubuntu:   apt-get install ripgrep");
-                        eprintln!("  Fedora:   dnf install ripgrep");
-                        eprintln!("  Windows:  choco install ripgrep");
-                        eprintln!();
-                        eprintln!("Or visit: https://github.com/BurntSushi/ripgrep#installation");
-                        process::exit(1);
-                    }
                     SearchError::Io(io_err) => {
                         eprintln!("{} {}", "IO Error:".red().bold(), io_err);
                         eprintln!();
@@ -128,15 +116,6 @@ fn main() {
                         eprintln!("  • Check file permissions in the current directory");
                         eprintln!("  • Verify you have read access to source files");
                         eprintln!("  • Ensure the directory structure is accessible");
-                        process::exit(1);
-                    }
-                    SearchError::RipgrepExecutionFailed(msg) => {
-                        eprintln!("{} {}", "Error:".red().bold(), msg);
-                        eprintln!();
-                        eprintln!("{}", "Next steps:".green().bold());
-                        eprintln!("  • Verify ripgrep is properly installed: {}", "rg --version".cyan());
-                        eprintln!("  • Check if the directory is accessible");
-                        eprintln!("  • Try running the trace from the project root directory");
                         process::exit(1);
                     }
                     _ => {
@@ -180,18 +159,6 @@ fn main() {
                 use colored::Colorize;
 
                 match e {
-                    SearchError::RipgrepNotFound => {
-                        eprintln!("{} {}", "Error:".red().bold(), e);
-                        eprintln!();
-                        eprintln!("{}", "Installation:".yellow().bold());
-                        eprintln!("  macOS:    brew install ripgrep");
-                        eprintln!("  Ubuntu:   apt-get install ripgrep");
-                        eprintln!("  Fedora:   dnf install ripgrep");
-                        eprintln!("  Windows:  choco install ripgrep");
-                        eprintln!();
-                        eprintln!("Or visit: https://github.com/BurntSushi/ripgrep#installation");
-                        process::exit(1);
-                    }
                     SearchError::NoTranslationFiles { text, searched_paths } => {
                         eprintln!("{} No translation files found containing '{}'", "Error:".red().bold(), text.bold());
                         eprintln!();
@@ -246,14 +213,6 @@ fn main() {
                         eprintln!("  • Check file permissions");
                         eprintln!("  • Verify the file/directory exists");
                         eprintln!("  • Ensure you have read access to the directory");
-                        process::exit(1);
-                    }
-                    SearchError::RipgrepExecutionFailed(msg) => {
-                        eprintln!("{} {}", "Error:".red().bold(), msg);
-                        eprintln!();
-                        eprintln!("{}", "Next steps:".green().bold());
-                        eprintln!("  • Verify ripgrep is properly installed: {}", "rg --version".cyan());
-                        eprintln!("  • Check if the directory is accessible");
                         process::exit(1);
                     }
                     _ => {
