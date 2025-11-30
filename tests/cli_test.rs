@@ -67,7 +67,8 @@ fn test_trace_and_traceback_conflict() {
 #[test]
 fn test_depth_flag_accepted() {
     let mut cmd = Command::cargo_bin("cs").unwrap();
-    cmd.args(["test", "--trace", "--depth", "5"])
+    cmd.args(["checkout", "--trace", "--depth", "5"])
+        .current_dir("tests/fixtures/code-examples")
         .assert()
         .success();
 }
@@ -98,4 +99,39 @@ fn test_trace_mode_backward() {
 fn test_case_sensitive_flag_accepted() {
     let mut cmd = Command::cargo_bin("cs").unwrap();
     cmd.args(["Test", "--case-sensitive"]).assert().success();
+}
+
+#[test]
+fn test_trace_function_not_found() {
+    let mut cmd = Command::cargo_bin("cs").unwrap();
+    cmd.args(["nonExistentFunction123", "--trace"])
+        .current_dir("tests/fixtures/code-examples")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("Function 'nonExistentFunction123' not found"))
+        .stderr(predicate::str::contains("Possible reasons:"))
+        .stderr(predicate::str::contains("Next steps:"));
+}
+
+#[test]
+fn test_trace_function_not_found_shows_helpful_tips() {
+    let mut cmd = Command::cargo_bin("cs").unwrap();
+    cmd.args(["invalidFunc", "--traceback"])
+        .current_dir("tests/fixtures/code-examples")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("The function doesn't exist"))
+        .stderr(predicate::str::contains("Verify function name"))
+        .stderr(predicate::str::contains("Check if you're in the right directory"));
+}
+
+#[test]
+fn test_default_mode_without_flags_does_i18n_search() {
+    // This test verifies that default mode (no --trace flags) still performs i18n search
+    let mut cmd = Command::cargo_bin("cs").unwrap();
+    cmd.arg("Add New")
+        .current_dir("tests/fixtures/rails-app")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("invoice.labels.add_new"));
 }
