@@ -1,4 +1,4 @@
-use crate::trace::{CallNode, CallTree};
+use crate::trace::{CallNode, CallTree, TraceDirection};
 use crate::tree::{NodeType, ReferenceTree, TreeNode};
 use crate::SearchResult;
 use colored::*;
@@ -71,10 +71,96 @@ impl TreeFormatter {
         output
     }
 
-    pub fn format_trace_tree(&self, tree: &CallTree) -> String {
+    pub fn format_trace_tree(&self, tree: &CallTree, direction: TraceDirection) -> String {
+        match direction {
+            TraceDirection::Forward => self.format_forward_tree(tree),
+            TraceDirection::Backward => self.format_backward_tree(tree),
+        }
+    }
+
+    fn format_forward_tree(&self, tree: &CallTree) -> String {
         let mut output = String::new();
         self.format_call_node(&tree.root, &mut output, "", true, true);
         output
+    }
+
+    fn format_backward_tree(&self, tree: &CallTree) -> String {
+        let mut output = String::new();
+        // For backward trace, we want to show chains like: caller -> callee -> target
+        // But the tree structure is target <- callee <- caller
+        // So we need to traverse from leaves to root, or just print the tree inverted.
+        // The requirement says: "Formats backward trace as chains (callers -> function)"
+        // Example: blah1 -> foo1 -> bar
+        
+        // Let's traverse the tree and collect paths from leaves to root.
+        // Since the tree is built with target as root and callers as children, 
+        // a path from a leaf to root represents a call chain: leaf calls ... calls root.
+        
+        let mut paths = Vec::new();
+        self.collect_backward_paths(&tree.root, vec![], &mut paths);
+        
+        for path in paths {
+            // path is [leaf, ..., root]
+            // We want to print: leaf -> ... -> root
+            // But wait, the path collected by collect_backward_paths is [root, ..., leaf] because we push node then recurse?
+            // Let's check collect_backward_paths.
+            // current_path.push(node); recurse(child, current_path.clone())
+            // So yes, current_path is [root, child, ..., leaf].
+            // Root is the target. Leaf is the furthest caller.
+            // So path is [target, caller, caller_of_caller].
+            // We want: caller_of_caller -> caller -> target.
+            // So we need to reverse the path.
+            
+            let mut display_path = path.clone();
+            display_path.reverse();
+            
+            let mut chain = display_path.iter()
+                .map(|node| format!("{} ({}:{})", node.def.name.bold(), node.def.file.display(), node.def.line))
+                .collect::<Vec<_>>()
+                .join(" -> ");
+            
+            // Check if the leaf (first in display_path) was truncated
+            if let Some(first) = display_path.first() {
+                if first.truncated {
+                    chain = format!("{} -> {}", "[depth limit reached]".red(), chain);
+                }
+            }
+
+            output.push_str(&chain);
+            output.push('\n');
+        }
+        
+        if output.is_empty() {
+            // If no callers found, just print the root
+             output.push_str(&format!("{} (No incoming calls found)\n", tree.root.def.name));
+        }
+
+        output
+    }
+
+    fn collect_backward_paths<'a>(
+        &'a self,
+        node: &'a CallNode,
+        mut current_path: Vec<&'a CallNode>,
+        paths: &mut Vec<Vec<&'a CallNode>>,
+    ) {
+        current_path.push(node);
+        
+        if node.children.is_empty() {
+            // Leaf node (a caller that is not called by anyone found/searched)
+            // or depth limit reached.
+            // If truncated, we should indicate it.
+            if node.truncated {
+                // If truncated, it means there are more callers but we stopped.
+                // We can append a special marker or just include the path.
+                // Let's just include the path for now.
+            }
+            paths.push(current_path);
+        } else {
+            for child in &node.children {
+                self.collect_backward_paths(child, current_path.clone(), paths);
+            }
+        }
     }
 
     fn format_call_node(
@@ -97,6 +183,11 @@ impl TreeFormatter {
             node.def.line
         );
         output.push_str(&content);
+        
+        if node.truncated {
+             output.push_str(&" [depth limit reached]".red().to_string());
+        }
+        
         output.push('\n');
 
         let child_count = node.children.len();

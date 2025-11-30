@@ -78,13 +78,13 @@ fn main() {
         };
 
         let current_dir = env::current_dir().unwrap_or_else(|_| Path::new(".").to_path_buf());
-        let query = cs::TraceQuery::new(cli.search_text.clone(), direction, cli.depth)
+        let query = cs::TraceQuery::new(cli.search_text.clone(), direction.clone(), cli.depth)
             .with_base_dir(current_dir);
 
         match cs::run_trace(query) {
             Ok(Some(tree)) => {
                 let formatter = cs::TreeFormatter::new();
-                let output = formatter.format_trace_tree(&tree);
+                let output = formatter.format_trace_tree(&tree, direction);
                 print!("{}", output);
             }
             Ok(None) => {
