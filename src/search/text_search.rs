@@ -83,7 +83,7 @@ impl TextSearcher {
             };
 
             // Skip directories
-            if entry.file_type().map_or(true, |ft| ft.is_dir()) {
+            if entry.file_type().is_none_or(|ft| ft.is_dir()) {
                 continue;
             }
 
@@ -113,7 +113,7 @@ impl TextSearcher {
             );
 
             // Ignore search errors for individual files
-            if let Err(_) = result {
+            if result.is_err() {
                 continue;
             }
         }

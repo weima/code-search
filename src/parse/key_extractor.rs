@@ -13,6 +13,12 @@ use super::yaml_parser::YamlParser;
 /// associated file path and line number for each match.
 pub struct KeyExtractor;
 
+impl Default for KeyExtractor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl KeyExtractor {
     /// Create a new `KeyExtractor`.
     pub fn new() -> Self {

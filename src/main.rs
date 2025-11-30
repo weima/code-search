@@ -46,7 +46,7 @@ fn validate_depth(s: &str) -> Result<usize, String> {
         .parse()
         .map_err(|_| format!("'{}' is not a valid number", s))?;
 
-    if depth < 1 || depth > 10 {
+    if !(1..=10).contains(&depth) {
         return Err(format!("depth must be between 1 and 10, got {}", depth));
     }
 

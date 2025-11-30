@@ -81,7 +81,7 @@ impl TreeFormatter {
 
     fn format_forward_tree(&self, tree: &CallTree) -> String {
         let mut output = String::new();
-        self.format_call_node(&tree.root, &mut output, "", true, true);
+        Self::format_call_node(&tree.root, &mut output, "", true, true);
         output
     }
 
@@ -98,7 +98,7 @@ impl TreeFormatter {
         // a path from a leaf to root represents a call chain: leaf calls ... calls root.
 
         let mut paths = Vec::new();
-        self.collect_backward_paths(&tree.root, vec![], &mut paths);
+        Self::collect_backward_paths(&tree.root, vec![], &mut paths);
 
         for path in paths {
             // path is [leaf, ..., root]
@@ -151,7 +151,6 @@ impl TreeFormatter {
     }
 
     fn collect_backward_paths<'a>(
-        &'a self,
         node: &'a CallNode,
         mut current_path: Vec<&'a CallNode>,
         paths: &mut Vec<Vec<&'a CallNode>>,
@@ -170,13 +169,12 @@ impl TreeFormatter {
             paths.push(current_path);
         } else {
             for child in &node.children {
-                self.collect_backward_paths(child, current_path.clone(), paths);
+                Self::collect_backward_paths(child, current_path.clone(), paths);
             }
         }
     }
 
     fn format_call_node(
-        &self,
         node: &CallNode,
         output: &mut String,
         prefix: &str,
@@ -210,7 +208,7 @@ impl TreeFormatter {
             } else {
                 format!("{}{}   ", prefix, if is_last { " " } else { "│" })
             };
-            self.format_call_node(child, output, &child_prefix, is_last_child, false);
+            Self::format_call_node(child, output, &child_prefix, is_last_child, false);
         }
     }
 
@@ -270,7 +268,7 @@ impl TreeFormatter {
             }
             NodeType::CodeRef => {
                 // Truncate code context
-                let truncated = self.truncate(&node.content.trim(), self.max_width - 30);
+                let truncated = self.truncate(node.content.trim(), self.max_width - 30);
                 format!("Code: {}", truncated)
             }
         }
