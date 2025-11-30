@@ -19,37 +19,28 @@ This document outlines the automated process for releasing a new version of `cod
 
 ## 1. Prepare Release (Version Bump)
 
-This step creates a branch, bumps versions in `Cargo.toml`, `npm/package.json`, etc., and commits them.
-
 ```bash
 ./scripts/release.sh prepare v0.2.0
 ```
+*   Creates branch `build-release-v0.2.0`
+*   Bumps versions
+*   Commits changes
+*   **Auto-creates Pull Request** (if `gh` CLI is installed)
 
-**Next Steps:**
-1.  Push the branch (`git push ...`).
-2.  Create a Pull Request and merge it to `main`.
-3.  **Tag the release** on GitHub:
-    ```bash
-    git checkout main
-    git pull
-    git tag v0.2.0
-    git push origin v0.2.0
-    ```
+**Action**: Merge the PR to `main`.
 
 ## 2. Publish Release (Distribute)
 
-Wait for the GitHub Action to finish building the release assets. Then run:
+Once the prepare PR is merged:
 
 ```bash
 ./scripts/release.sh publish v0.2.0
 ```
 
-This will:
-1.  (Commented out) Publish to Crates.io
-2.  (Commented out) Publish to NPM
-3.  Create a branch `homebrew-v0.2.0`, update the formula with the new SHA256, and commit.
+*   **Checks/Creates Tag**: If `v0.2.0` doesn't exist, it tags and pushes it.
+*   **Waits for CI**: Polls GitHub until release assets are built (can take ~2-5 mins).
+*   **Updates Homebrew**: Downloads asset, calculates SHA, updates formula.
+*   **Auto-creates Pull Request** for the formula update.
 
-**Next Steps:**
-1.  Push the homebrew branch.
-2.  Create a Pull Request to merge the formula update.
+**Action**: Merge the Homebrew PR.
 
