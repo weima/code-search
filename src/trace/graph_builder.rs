@@ -12,6 +12,7 @@ pub enum TraceDirection {
 pub struct CallNode {
     pub def: FunctionDef,
     pub children: Vec<CallNode>,
+    pub truncated: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -66,6 +67,7 @@ impl<'a> CallGraphBuilder<'a> {
             return Some(CallNode {
                 def: func.clone(),
                 children: vec![],
+                truncated: true,
             });
         }
 
@@ -74,6 +76,7 @@ impl<'a> CallGraphBuilder<'a> {
             return Some(CallNode {
                 def: func.clone(),
                 children: vec![],
+                truncated: false, // Not truncated by depth, but by cycle
             });
         }
 
@@ -91,6 +94,7 @@ impl<'a> CallGraphBuilder<'a> {
         Some(CallNode {
             def: func.clone(),
             children,
+            truncated: false,
         })
     }
 
@@ -252,10 +256,12 @@ mod tests {
         let node = CallNode {
             def: func.clone(),
             children: vec![],
+            truncated: false,
         };
 
         assert_eq!(node.def.name, "test_func");
         assert_eq!(node.children.len(), 0);
+        assert!(!node.truncated);
     }
 
     #[test]
@@ -264,6 +270,7 @@ mod tests {
         let root = CallNode {
             def: func,
             children: vec![],
+            truncated: false,
         };
         let tree = CallTree { root };
 
@@ -278,11 +285,13 @@ mod tests {
         let helper_node = CallNode {
             def: helper_func,
             children: vec![],
+            truncated: false,
         };
 
         let root = CallNode {
             def: main_func,
             children: vec![helper_node],
+            truncated: false,
         };
 
         let tree = CallTree { root };
@@ -299,16 +308,19 @@ mod tests {
         let node3 = CallNode {
             def: func3,
             children: vec![],
+            truncated: false,
         };
 
         let node2 = CallNode {
             def: func2,
             children: vec![node3],
+            truncated: false,
         };
 
         let root = CallNode {
             def: func1,
             children: vec![node2],
+            truncated: false,
         };
 
         let tree = CallTree { root };
@@ -354,6 +366,7 @@ mod tests {
         let node = result.unwrap();
         assert_eq!(node.def.name, "test");
         assert_eq!(node.children.len(), 0); // Should have no children due to depth limit
+        assert!(node.truncated); // Should be truncated
     }
 
     #[test]
