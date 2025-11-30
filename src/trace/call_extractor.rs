@@ -202,8 +202,34 @@ impl CallExtractor {
         Ok(calls.into_iter().collect())
     }
 
-    /// Find the end of a function definition by looking for closing braces
+    /// Find the end of a function definition
     fn find_function_end(&self, lines: &[&str], start_line: usize) -> usize {
+        if start_line >= lines.len() {
+            return lines.len();
+        }
+
+        let start_content = lines[start_line].trim();
+        
+        // Check for brace-based languages (JS, Rust, etc.)
+        if start_content.contains('{') || (start_line + 1 < lines.len() && lines[start_line + 1].trim().contains('{')) {
+            return self.find_brace_end(lines, start_line);
+        }
+        
+        // Check for Ruby (def ... end)
+        if start_content.starts_with("def ") {
+            return self.find_ruby_end(lines, start_line);
+        }
+        
+        // Check for Python (indentation)
+        if start_content.starts_with("def ") && start_content.ends_with(':') {
+            return self.find_python_end(lines, start_line);
+        }
+
+        // Default fallback
+        (start_line + 30).min(lines.len())
+    }
+
+    fn find_brace_end(&self, lines: &[&str], start_line: usize) -> usize {
         let mut brace_count = 0;
         let mut found_opening = false;
 
@@ -224,9 +250,47 @@ impl CallExtractor {
                 }
             }
         }
-
-        // If we can't find the end, default to 30 lines
         (start_line + 30).min(lines.len())
+    }
+
+    fn find_ruby_end(&self, lines: &[&str], start_line: usize) -> usize {
+        let mut depth = 0;
+        let mut found_start = false;
+
+        for (i, line) in lines.iter().enumerate().skip(start_line) {
+            let trimmed = line.trim();
+            // Simple heuristic for Ruby blocks
+            if trimmed.starts_with("def ") || trimmed.starts_with("class ") || trimmed.starts_with("module ") || trimmed.starts_with("if ") || trimmed.starts_with("do ") || trimmed.starts_with("begin ") {
+                depth += 1;
+                found_start = true;
+            }
+            
+            if trimmed == "end" || trimmed.starts_with("end ") {
+                depth -= 1;
+                if found_start && depth == 0 {
+                    return i + 1;
+                }
+            }
+        }
+        (start_line + 30).min(lines.len())
+    }
+
+    fn find_python_end(&self, lines: &[&str], start_line: usize) -> usize {
+        // Get indentation of the function definition
+        let def_indent = lines[start_line].chars().take_while(|c| c.is_whitespace()).count();
+        
+        for (i, line) in lines.iter().enumerate().skip(start_line + 1) {
+            let trimmed = line.trim();
+            if trimmed.is_empty() || trimmed.starts_with('#') {
+                continue;
+            }
+            
+            let current_indent = line.chars().take_while(|c| c.is_whitespace()).count();
+            if current_indent <= def_indent {
+                return i;
+            }
+        }
+        lines.len()
     }
 
     /// Check if a line is a comment or inside a string literal
@@ -234,7 +298,7 @@ impl CallExtractor {
         let trimmed = line.trim();
         // JavaScript/TypeScript comments
         trimmed.starts_with("//") || trimmed.starts_with("/*") ||
-        // Ruby comments
+        // Ruby/Python comments
         trimmed.starts_with("#")
     }
 
@@ -261,19 +325,31 @@ impl CallExtractor {
             let matches = self.searcher.search(&variant)?;
 
             for m in matches {
-                // Verify this is actually a function call (not just the name appearing)
-                if !m.content.contains(&format!("{}(", variant)) {
+                // Skip comment lines (JavaScript //, Ruby/Python #)
+                let trimmed = m.content.trim();
+                if trimmed.starts_with("//") || trimmed.starts_with("#") {
                     continue;
                 }
 
-                // Try to determine the containing function
+                // Ensure it's a function call (variant followed by '(') with word boundary
+                let call_regex = Regex::new(&format!(r"\b{}\s*\(", regex::escape(&variant))).unwrap();
+                if !call_regex.is_match(&m.content) {
+                    continue;
+                }
+
+                // Skip function definition lines where the variant is being defined
+                if trimmed.starts_with("function ") || trimmed.starts_with("def ") || trimmed.starts_with("fn ") {
+                    if trimmed.contains(&variant) {
+                        continue;
+                    }
+                }
+
+                // Determine the calling function
                 let caller_name = self.find_containing_function(&m.file, m.line)?;
 
                 // Avoid duplicates (same caller, file, line)
                 if !callers.iter().any(|existing: &CallerInfo| {
-                    existing.caller_name == caller_name
-                        && existing.file == m.file
-                        && existing.line == m.line
+                    existing.caller_name == caller_name && existing.file == m.file && existing.line == m.line
                 }) {
                     callers.push(CallerInfo {
                         caller_name,
