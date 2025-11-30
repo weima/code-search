@@ -212,13 +212,24 @@ Built on a foundation of proven tools:
 
 ## Installation
 
-### From Source (Rust)
+### Homebrew (macOS/Linux)
+```bash
+brew tap weima/code-search
+brew install cs
+```
+
+### NPM (Cross-platform)
+```bash
+npm install -g code-search-cli
+```
+
+### Cargo (Rust)
 ```bash
 cargo install code-search
 ```
 
-### From GitHub Releases
-Download the pre-compiled binary for your platform from [Releases](https://github.com/user/code-search/releases).
+### From Binary
+Download the pre-compiled binary for your platform from [Releases](https://github.com/weima/code-search/releases).
 
 ## Usage
 
