@@ -130,3 +130,10 @@ Results are saved to `target/criterion/` with detailed HTML reports.
 - Call graph tracing (forward and backward)
 - Tree-based output formatting
 - Cross-platform support (macOS, Linux, Windows)
+
+## [0.1.1] - 2025-11-30
+
+### Added
+- NPM wrapper for easy installation
+- Homebrew formula for macOS
+- GitHub Actions for automated releases
