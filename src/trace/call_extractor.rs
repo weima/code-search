@@ -209,22 +209,23 @@ impl CallExtractor {
         }
 
         let start_content = lines[start_line].trim();
-        
+
         // Check for brace-based languages (JS, Rust, etc.)
-        if start_content.contains('{') || (start_line + 1 < lines.len() && lines[start_line + 1].trim().contains('{')) {
+        if start_content.contains('{')
+            || (start_line + 1 < lines.len() && lines[start_line + 1].trim().contains('{'))
+        {
             return self.find_brace_end(lines, start_line);
         }
-        
-        // Check for Ruby (def ... end)
-        if start_content.starts_with("def ") {
-            return self.find_ruby_end(lines, start_line);
-        }
-        
-        // Check for Python (indentation)
+
+        // Check for Python (indentation) - must come before Ruby check
         if start_content.starts_with("def ") && start_content.ends_with(':') {
             return self.find_python_end(lines, start_line);
         }
 
+        // Check for Ruby (def ... end)
+        if start_content.starts_with("def ") {
+            return self.find_ruby_end(lines, start_line);
+        }
         // Default fallback
         (start_line + 30).min(lines.len())
     }
@@ -260,11 +261,17 @@ impl CallExtractor {
         for (i, line) in lines.iter().enumerate().skip(start_line) {
             let trimmed = line.trim();
             // Simple heuristic for Ruby blocks
-            if trimmed.starts_with("def ") || trimmed.starts_with("class ") || trimmed.starts_with("module ") || trimmed.starts_with("if ") || trimmed.starts_with("do ") || trimmed.starts_with("begin ") {
+            if trimmed.starts_with("def ")
+                || trimmed.starts_with("class ")
+                || trimmed.starts_with("module ")
+                || trimmed.starts_with("if ")
+                || trimmed.starts_with("do ")
+                || trimmed.starts_with("begin ")
+            {
                 depth += 1;
                 found_start = true;
             }
-            
+
             if trimmed == "end" || trimmed.starts_with("end ") {
                 depth -= 1;
                 if found_start && depth == 0 {
@@ -277,14 +284,17 @@ impl CallExtractor {
 
     fn find_python_end(&self, lines: &[&str], start_line: usize) -> usize {
         // Get indentation of the function definition
-        let def_indent = lines[start_line].chars().take_while(|c| c.is_whitespace()).count();
-        
+        let def_indent = lines[start_line]
+            .chars()
+            .take_while(|c| c.is_whitespace())
+            .count();
+
         for (i, line) in lines.iter().enumerate().skip(start_line + 1) {
             let trimmed = line.trim();
             if trimmed.is_empty() || trimmed.starts_with('#') {
                 continue;
             }
-            
+
             let current_indent = line.chars().take_while(|c| c.is_whitespace()).count();
             if current_indent <= def_indent {
                 return i;
@@ -332,13 +342,17 @@ impl CallExtractor {
                 }
 
                 // Ensure it's a function call (variant followed by '(') with word boundary
-                let call_regex = Regex::new(&format!(r"\b{}\s*\(", regex::escape(&variant))).unwrap();
+                let call_regex =
+                    Regex::new(&format!(r"\b{}\s*\(", regex::escape(&variant))).unwrap();
                 if !call_regex.is_match(&m.content) {
                     continue;
                 }
 
                 // Skip function definition lines where the variant is being defined
-                if trimmed.starts_with("function ") || trimmed.starts_with("def ") || trimmed.starts_with("fn ") {
+                if trimmed.starts_with("function ")
+                    || trimmed.starts_with("def ")
+                    || trimmed.starts_with("fn ")
+                {
                     if trimmed.contains(&variant) {
                         continue;
                     }
@@ -349,7 +363,9 @@ impl CallExtractor {
 
                 // Avoid duplicates (same caller, file, line)
                 if !callers.iter().any(|existing: &CallerInfo| {
-                    existing.caller_name == caller_name && existing.file == m.file && existing.line == m.line
+                    existing.caller_name == caller_name
+                        && existing.file == m.file
+                        && existing.line == m.line
                 }) {
                     callers.push(CallerInfo {
                         caller_name,
