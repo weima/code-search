@@ -23,6 +23,10 @@ pub struct CallExtractor {
 }
 
 impl CallExtractor {
+    /// Create a new CallExtractor
+    ///
+    /// # Arguments
+    /// * `base_dir` - The base directory of the project to search in
     pub fn new(base_dir: PathBuf) -> Self {
         Self {
             searcher: TextSearcher::new(base_dir),

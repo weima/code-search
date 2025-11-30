@@ -8,10 +8,15 @@ use std::path::PathBuf;
 /// Represents a code reference to a translation key
 #[derive(Debug, Clone, PartialEq)]
 pub struct CodeReference {
+    /// Path to the file containing the reference
     pub file: PathBuf,
+    /// Line number (1-indexed)
     pub line: usize,
+    /// The regex pattern that matched
     pub pattern: String,
+    /// The actual line of code containing the match
     pub context: String,
+    /// The translation key path that was matched
     pub key_path: String,
 }
 
