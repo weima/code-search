@@ -18,13 +18,15 @@ pub struct FunctionDef {
 pub struct FunctionFinder {
     searcher: TextSearcher,
     patterns: Vec<Regex>,
+    base_dir: PathBuf,
 }
 
 impl FunctionFinder {
     pub fn new(base_dir: PathBuf) -> Self {
         Self {
-            searcher: TextSearcher::new(base_dir),
+            searcher: TextSearcher::new(base_dir.clone()),
             patterns: Self::default_patterns(),
+            base_dir,
         }
     }
 
@@ -131,13 +133,23 @@ impl FunctionFinder {
     }
 
     pub fn find_function(&self, func_name: &str) -> Option<FunctionDef> {
-        // Try all case variants
+        // Try exact match first
+        if let Ok(mut defs) = self.find_definition(func_name) {
+            if let Some(def) = defs.pop() {
+                return Some(def);
+            }
+        }
+
+        // Try case variants if exact match fails
         let variants = Self::generate_case_variants(func_name);
 
         for variant in variants {
-            if let Ok(mut defs) = self.find_definition(&variant) {
-                if let Some(def) = defs.pop() {
-                    return Some(def);
+            if variant != func_name {
+                // Skip the exact match we already tried
+                if let Ok(mut defs) = self.find_definition(&variant) {
+                    if let Some(def) = defs.pop() {
+                        return Some(def);
+                    }
                 }
             }
         }
@@ -158,9 +170,15 @@ impl FunctionFinder {
         // Filter matches that look like function definitions
         for m in matches {
             // Filter out the tool's own source files
-            let file_str = m.file.to_string_lossy().to_lowercase();
-            if file_str.starts_with("src/")
-                || (file_str.starts_with("tests/") && !file_str.starts_with("tests/fixtures/"))
+            // Convert absolute path to relative path for filtering
+            let relative_path = match m.file.strip_prefix(&self.base_dir) {
+                Ok(rel_path) => rel_path.to_string_lossy().to_lowercase(),
+                Err(_) => m.file.to_string_lossy().to_lowercase(),
+            };
+
+            if relative_path.starts_with("src/")
+                || (relative_path.starts_with("tests/")
+                    && !relative_path.starts_with("tests/fixtures/"))
             {
                 continue;
             }
@@ -172,6 +190,7 @@ impl FunctionFinder {
                 if let Some(captures) = pattern.captures(content) {
                     if let Some(name_match) = captures.get(1) {
                         let name = name_match.as_str();
+                        // Ensure exact match (not substring)
                         if name == func_name {
                             let file_content = fs::read_to_string(&m.file)?;
                             let body = file_content
@@ -198,6 +217,8 @@ impl FunctionFinder {
                 func_name
             )))
         } else {
+            // Sort results by file path then line number for deterministic ordering
+            results.sort_by(|a, b| a.file.cmp(&b.file).then(a.line.cmp(&b.line)));
             Ok(results)
         }
     }
