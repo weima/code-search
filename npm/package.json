@@ -3,7 +3,7 @@
     "version": "0.1.0",
     "description": "Intelligent code search tool for tracing text to implementation code",
     "bin": {
-        "cs": "./bin/cs"
+        "cs": "bin/cs"
     },
     "scripts": {
         "postinstall": "node install.js"
