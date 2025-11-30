@@ -277,6 +277,8 @@ mod tests {
         // Should only include the matching code ref
         let key_path = &tree.root.children[0].children[0];
         assert_eq!(key_path.children.len(), 1);
-        assert!(key_path.children[0].content.contains("invoice.labels.add_new"));
+        assert!(key_path.children[0]
+            .content
+            .contains("invoice.labels.add_new"));
     }
 }

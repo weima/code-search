@@ -2,7 +2,6 @@
 ///
 /// These tests verify that the tool provides clear error messages and helpful
 /// guidance when searches fail or encounter problems.
-
 use assert_cmd::Command;
 use predicates::prelude::*;
 use std::fs;
@@ -106,16 +105,22 @@ fn test_malformed_yaml_mentions_common_issues() {
 
     let temp_dir = TempDir::new().unwrap();
     fs::create_dir_all(temp_dir.path().join("locales")).unwrap();
-    fs::write(temp_dir.path().join("locales/test.yml"), "key: [unclosed bracket").unwrap();
+    fs::write(
+        temp_dir.path().join("locales/test.yml"),
+        "key: [unclosed bracket",
+    )
+    .unwrap();
 
     let mut cmd = Command::cargo_bin("cs").unwrap();
     cmd.arg("test")
         .current_dir(temp_dir.path())
         .assert()
         .failure()
-        .stderr(predicate::str::contains("indentation")
-            .or(predicate::str::contains("quotes"))
-            .or(predicate::str::contains("brackets")));
+        .stderr(
+            predicate::str::contains("indentation")
+                .or(predicate::str::contains("quotes"))
+                .or(predicate::str::contains("brackets")),
+        );
 }
 
 // ============================================================================
@@ -153,7 +158,9 @@ fn test_yaml_with_only_comments() {
 
     fs::write(
         temp_dir.path().join("locales/comments.yml"),
-        "# This is a comment\n# Another comment\n").unwrap();
+        "# This is a comment\n# Another comment\n",
+    )
+    .unwrap();
 
     let mut cmd = Command::cargo_bin("cs").unwrap();
     cmd.arg("test")
@@ -173,7 +180,9 @@ fn test_yaml_with_null_values() {
 
     fs::write(
         temp_dir.path().join("locales/nulls.yml"),
-        "en:\n  key1: null\n  key2: \"value\"").unwrap();
+        "en:\n  key1: null\n  key2: \"value\"",
+    )
+    .unwrap();
 
     let mut cmd = Command::cargo_bin("cs").unwrap();
     cmd.arg("value")
@@ -214,7 +223,9 @@ fn test_special_yaml_characters_in_values() {
 
     fs::write(
         temp_dir.path().join("locales/special.yml"),
-        "en:\n  key: \"value: with: colons\"\n  key2: \"value with 'quotes'\"").unwrap();
+        "en:\n  key: \"value: with: colons\"\n  key2: \"value with 'quotes'\"",
+    )
+    .unwrap();
 
     let mut cmd = Command::cargo_bin("cs").unwrap();
     cmd.arg("value: with: colons")
@@ -235,7 +246,9 @@ fn test_unicode_in_translations() {
 
     fs::write(
         temp_dir.path().join("locales/unicode.yml"),
-        "en:\n  greeting: \"Hello 世界 🌍\"").unwrap();
+        "en:\n  greeting: \"Hello 世界 🌍\"",
+    )
+    .unwrap();
 
     let mut cmd = Command::cargo_bin("cs").unwrap();
     cmd.arg("Hello 世界")
@@ -256,7 +269,9 @@ fn test_yaml_with_array_values() {
 
     fs::write(
         temp_dir.path().join("locales/arrays.yml"),
-        "en:\n  items:\n    - \"first\"\n    - \"second\"\n    - \"third\"").unwrap();
+        "en:\n  items:\n    - \"first\"\n    - \"second\"\n    - \"third\"",
+    )
+    .unwrap();
 
     let mut cmd = Command::cargo_bin("cs").unwrap();
     cmd.arg("second")
@@ -309,11 +324,15 @@ fn test_mixed_yaml_and_json_files() {
 
     fs::write(
         temp_dir.path().join("locales/en.yml"),
-        "en:\n  yaml_key: \"yaml value\"").unwrap();
+        "en:\n  yaml_key: \"yaml value\"",
+    )
+    .unwrap();
 
     fs::write(
         temp_dir.path().join("locales/en.json"),
-        r#"{"en": {"json_key": "json value"}}"#).unwrap();
+        r#"{"en": {"json_key": "json value"}}"#,
+    )
+    .unwrap();
 
     let mut cmd = Command::cargo_bin("cs").unwrap();
     cmd.arg("yaml value")
@@ -342,7 +361,9 @@ fn test_nested_directory_structure() {
 
     fs::write(
         nested_path.join("models.yml"),
-        "en:\n  models:\n    user: \"User\"").unwrap();
+        "en:\n  models:\n    user: \"User\"",
+    )
+    .unwrap();
 
     let mut cmd = Command::cargo_bin("cs").unwrap();
     cmd.arg("User")
@@ -364,9 +385,7 @@ fn test_symlinks_handled_correctly() {
         let real_dir = temp_dir.path().join("real_locales");
         fs::create_dir_all(&real_dir).unwrap();
 
-        fs::write(
-            real_dir.join("en.yml"),
-            "en:\n  key: \"value\"").unwrap();
+        fs::write(real_dir.join("en.yml"), "en:\n  key: \"value\"").unwrap();
 
         let link_path = temp_dir.path().join("locales");
         unix_fs::symlink(&real_dir, &link_path).unwrap();

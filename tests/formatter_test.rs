@@ -28,7 +28,7 @@ fn test_format_with_custom_width() {
 
     let result = run_search(query).expect("Search should succeed");
     let tree = ReferenceTreeBuilder::build(&result);
-    
+
     let formatter = TreeFormatter::with_width(120);
     let output = formatter.format(&tree);
 
@@ -67,7 +67,7 @@ fn test_format_tree_structure() {
 
     // Check for tree structure characters
     assert!(output.contains("└─>") || output.contains("├─>"));
-    
+
     // Check for proper indentation (spaces or tree characters)
     let lines: Vec<&str> = output.lines().collect();
     assert!(lines.len() > 1, "Should have multiple lines");
@@ -76,33 +76,37 @@ fn test_format_tree_structure() {
 #[test]
 fn test_end_to_end_with_formatter() {
     println!("\n=== End-to-End with Formatter ===\n");
-    
+
     let search_text = "add new";
     println!("Searching for: '{}'", search_text);
-    
+
     let query = SearchQuery::new(search_text.to_string())
         .with_base_dir(PathBuf::from("tests/fixtures/rails-app"));
-    
+
     println!("1. Running search...");
     let result = run_search(query).expect("Search should succeed");
-    println!("   Found {} translations, {} code references", 
-        result.translation_entries.len(), 
-        result.code_references.len());
-    
+    println!(
+        "   Found {} translations, {} code references",
+        result.translation_entries.len(),
+        result.code_references.len()
+    );
+
     println!("2. Building tree...");
     let tree = ReferenceTreeBuilder::build(&result);
-    println!("   Tree has {} nodes, depth {}", 
-        tree.node_count(), 
-        tree.max_depth());
-    
+    println!(
+        "   Tree has {} nodes, depth {}",
+        tree.node_count(),
+        tree.max_depth()
+    );
+
     println!("3. Formatting output...\n");
     let formatter = TreeFormatter::new();
     let output = formatter.format(&tree);
-    
+
     println!("{}", output);
-    
+
     println!("\n✅ End-to-end workflow complete!");
-    
+
     assert!(!output.is_empty());
     assert!(output.contains("'add new'"));
 }
@@ -121,10 +125,13 @@ fn test_format_multiple_translations() {
 
     // Should have multiple translation entries
     assert!(output.contains("invoice"));
-    
+
     // Count the number of translation nodes (lines with .yml)
     let yml_count = output.lines().filter(|line| line.contains(".yml")).count();
-    assert!(yml_count > 0, "Should have at least one translation file reference");
+    assert!(
+        yml_count > 0,
+        "Should have at least one translation file reference"
+    );
 }
 
 #[test]
@@ -158,10 +165,12 @@ fn test_format_readable_output() {
     assert!(output.contains("Key:"), "Should label key paths");
     assert!(output.contains("Code:"), "Should label code references");
     assert!(output.contains("search query"), "Should label root");
-    
+
     // Verify no truncation artifacts in short content
-    assert!(!output.contains("...") || output.len() > 500, 
-        "Short content should not be truncated");
+    assert!(
+        !output.contains("...") || output.len() > 500,
+        "Short content should not be truncated"
+    );
 }
 
 #[test]
@@ -171,19 +180,19 @@ fn test_format_comparison() {
 
     let result = run_search(query).expect("Search should succeed");
     let tree = ReferenceTreeBuilder::build(&result);
-    
+
     println!("\n=== Format Comparison ===\n");
-    
+
     println!("--- 80 columns ---");
     let formatter_80 = TreeFormatter::with_width(80);
     let output_80 = formatter_80.format(&tree);
     println!("{}", output_80);
-    
+
     println!("\n--- 120 columns ---");
     let formatter_120 = TreeFormatter::with_width(120);
     let output_120 = formatter_120.format(&tree);
     println!("{}", output_120);
-    
+
     // Both should have the same structure
     assert_eq!(output_80.lines().count(), output_120.lines().count());
 }

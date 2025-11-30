@@ -2,7 +2,6 @@
 ///
 /// These tests verify that the tool can trace UI text directly to implementation code
 /// by searching translation files and finding code references.
-
 use assert_cmd::Command;
 use predicates::prelude::*;
 use std::fs;
@@ -121,7 +120,11 @@ fn test_search_performance_reasonable() {
         .success();
 
     let duration = start.elapsed();
-    assert!(duration.as_secs() < 5, "Search took too long: {:?}", duration);
+    assert!(
+        duration.as_secs() < 5,
+        "Search took too long: {:?}",
+        duration
+    );
 }
 
 #[test]

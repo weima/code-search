@@ -4,9 +4,9 @@ use crate::error::Result;
 use std::path::Path;
 use walkdir::WalkDir;
 
+use super::json_parser::JsonParser;
 use super::translation::TranslationEntry;
 use super::yaml_parser::YamlParser;
-use super::json_parser::JsonParser;
 
 /// `KeyExtractor` provides functionality to search translation entries across
 /// multiple YAML translation files, returning the full dot‑notation key path,
@@ -196,7 +196,8 @@ mod tests {
 
         // Should find both YAML and JSON files
         assert_eq!(results.len(), 2);
-        let extensions: Vec<_> = results.iter()
+        let extensions: Vec<_> = results
+            .iter()
             .map(|e| e.file.extension().unwrap().to_string_lossy().to_string())
             .collect();
         assert!(extensions.contains(&"yml".to_string()));

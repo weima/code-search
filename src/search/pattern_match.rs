@@ -131,10 +131,9 @@ mod tests {
 
     #[test]
     fn test_pattern_matcher_with_custom_patterns() {
-        let custom_patterns = vec![
-            Regex::new(r#"custom\.t\(['"]([^'"]+)['"]\)"#).unwrap(),
-        ];
-        let matcher = PatternMatcher::with_patterns(custom_patterns, std::env::current_dir().unwrap());
+        let custom_patterns = vec![Regex::new(r#"custom\.t\(['"]([^'"]+)['"]\)"#).unwrap()];
+        let matcher =
+            PatternMatcher::with_patterns(custom_patterns, std::env::current_dir().unwrap());
         assert_eq!(matcher.patterns.len(), 1);
     }
 }

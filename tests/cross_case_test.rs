@@ -1,7 +1,7 @@
-use cs::{run_trace, TraceQuery, TraceDirection};
-use std::path::PathBuf;
+use cs::{run_trace, TraceDirection, TraceQuery};
 use std::fs::{self, File};
 use std::io::Write;
+use std::path::PathBuf;
 use tempfile::TempDir;
 
 #[test]
@@ -32,39 +32,37 @@ fn test_cross_case_function_search() {
 
     // Case 1: Search for camelCase input "processUserData"
     // Should find definition "process_user_data" and both callers
-    let query = TraceQuery::new(
-        "processUserData".to_string(),
-        TraceDirection::Backward,
-        1
-    ).with_base_dir(base_dir.clone());
+    let query = TraceQuery::new("processUserData".to_string(), TraceDirection::Backward, 1)
+        .with_base_dir(base_dir.clone());
 
     let result = run_trace(query).expect("Trace failed");
     assert!(result.is_some(), "Should find function definition");
-    
+
     let tree = result.unwrap();
     let root = &tree.root;
-    
+
     // Verify definition found (original name in file)
     assert_eq!(root.def.name, "process_user_data");
     assert_eq!(root.def.file, ruby_file);
 
     // Verify callers found
     assert_eq!(root.children.len(), 2, "Should find 2 callers");
-    
-    let caller_names: Vec<String> = root.children.iter()
-        .map(|c| c.def.name.clone())
-        .collect();
-    
-    assert!(caller_names.contains(&"syncUsers".to_string()), "Should find JS caller");
-    assert!(caller_names.contains(&"main".to_string()), "Should find Python caller");
+
+    let caller_names: Vec<String> = root.children.iter().map(|c| c.def.name.clone()).collect();
+
+    assert!(
+        caller_names.contains(&"syncUsers".to_string()),
+        "Should find JS caller"
+    );
+    assert!(
+        caller_names.contains(&"main".to_string()),
+        "Should find Python caller"
+    );
 
     // Case 2: Search for snake_case input "process_user_data"
     // Should find same results
-    let query = TraceQuery::new(
-        "process_user_data".to_string(),
-        TraceDirection::Backward,
-        1
-    ).with_base_dir(base_dir);
+    let query = TraceQuery::new("process_user_data".to_string(), TraceDirection::Backward, 1)
+        .with_base_dir(base_dir);
 
     let result = run_trace(query).expect("Trace failed");
     assert!(result.is_some(), "Should find function definition");

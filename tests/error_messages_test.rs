@@ -79,7 +79,9 @@ fn test_yaml_parse_error_shows_common_issues() {
         .current_dir(temp_dir.path())
         .assert()
         .failure()
-        .stderr(predicate::str::contains("indentation")
-            .or(predicate::str::contains("quotes"))
-            .or(predicate::str::contains("brackets")));
+        .stderr(
+            predicate::str::contains("indentation")
+                .or(predicate::str::contains("quotes"))
+                .or(predicate::str::contains("brackets")),
+        );
 }

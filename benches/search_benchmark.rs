@@ -1,7 +1,5 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
-use cs::{
-    KeyExtractor, PatternMatcher, SearchQuery, TextSearcher, TraceDirection, TraceQuery,
-};
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use cs::{KeyExtractor, PatternMatcher, SearchQuery, TextSearcher, TraceDirection, TraceQuery};
 use std::path::PathBuf;
 
 /// Get the path to test fixtures
@@ -20,22 +18,14 @@ fn bench_text_search(c: &mut Criterion) {
     group.bench_function("small_project", |b| {
         let base_dir = fixture_path("rails-app");
         let searcher = TextSearcher::new(base_dir);
-        b.iter(|| {
-            searcher
-                .search(black_box("add new"))
-                .unwrap()
-        });
+        b.iter(|| searcher.search(black_box("add new")).unwrap());
     });
 
     // Medium project: Search across code-examples
     group.bench_function("medium_project", |b| {
         let base_dir = fixture_path("code-examples");
         let searcher = TextSearcher::new(base_dir);
-        b.iter(|| {
-            searcher
-                .search(black_box("checkout"))
-                .unwrap()
-        });
+        b.iter(|| searcher.search(black_box("checkout")).unwrap());
     });
 
     // Large project: Search across all fixtures
@@ -44,11 +34,7 @@ fn bench_text_search(c: &mut Criterion) {
             .join("tests")
             .join("fixtures");
         let searcher = TextSearcher::new(base_dir);
-        b.iter(|| {
-            searcher
-                .search(black_box("function"))
-                .unwrap()
-        });
+        b.iter(|| searcher.search(black_box("function")).unwrap());
     });
 
     group.finish();
@@ -120,8 +106,8 @@ fn bench_end_to_end_search(c: &mut Criterion) {
     group.bench_function("small_project", |b| {
         let base_dir = fixture_path("rails-app");
         b.iter(|| {
-            let query = SearchQuery::new(black_box("add new".to_string()))
-                .with_base_dir(base_dir.clone());
+            let query =
+                SearchQuery::new(black_box("add new".to_string())).with_base_dir(base_dir.clone());
             cs::run_search(query).unwrap()
         });
     });
@@ -143,8 +129,8 @@ fn bench_end_to_end_search(c: &mut Criterion) {
             .join("tests")
             .join("fixtures");
         b.iter(|| {
-            let query = SearchQuery::new(black_box("invoice".to_string()))
-                .with_base_dir(base_dir.clone());
+            let query =
+                SearchQuery::new(black_box("invoice".to_string())).with_base_dir(base_dir.clone());
             cs::run_search(query).unwrap()
         });
     });
@@ -208,9 +194,13 @@ fn bench_project_sizes(c: &mut Criterion) {
     let sizes = vec![
         ("small", fixture_path("rails-app"), "add new"),
         ("medium", fixture_path("code-examples"), "checkout"),
-        ("large",
-         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests").join("fixtures"),
-         "function"),
+        (
+            "large",
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("tests")
+                .join("fixtures"),
+            "function",
+        ),
     ];
 
     for (size, base_dir, query_text) in sizes.iter() {
@@ -219,8 +209,8 @@ fn bench_project_sizes(c: &mut Criterion) {
             &(base_dir.clone(), query_text.to_string()),
             |b, (dir, text)| {
                 b.iter(|| {
-                    let query = SearchQuery::new(black_box(text.clone()))
-                        .with_base_dir(dir.clone());
+                    let query =
+                        SearchQuery::new(black_box(text.clone())).with_base_dir(dir.clone());
                     cs::run_search(query).unwrap()
                 });
             },
