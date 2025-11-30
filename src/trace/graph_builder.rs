@@ -183,43 +183,38 @@ impl<'a> CallGraphBuilder<'a> {
 impl CallTree {
     /// Get the total number of nodes in the tree
     pub fn node_count(&self) -> usize {
-        self.count_nodes(&self.root)
+        Self::count_nodes(&self.root)
     }
 
     /// Get the maximum depth of the tree
     pub fn max_depth(&self) -> usize {
-        self.calculate_depth(&self.root, 0)
+        Self::calculate_depth(&self.root, 0)
     }
 
     /// Check if the tree contains cycles
     pub fn has_cycles(&self) -> bool {
         let mut visited = HashSet::new();
         let mut path = HashSet::new();
-        self.has_cycle_helper(&self.root, &mut visited, &mut path)
+        Self::has_cycle_helper(&self.root, &mut visited, &mut path)
     }
 
-    fn count_nodes(&self, node: &CallNode) -> usize {
-        1 + node
-            .children
-            .iter()
-            .map(|child| self.count_nodes(child))
-            .sum::<usize>()
+    fn count_nodes(node: &CallNode) -> usize {
+        1 + node.children.iter().map(Self::count_nodes).sum::<usize>()
     }
 
-    fn calculate_depth(&self, node: &CallNode, current_depth: usize) -> usize {
+    fn calculate_depth(node: &CallNode, current_depth: usize) -> usize {
         if node.children.is_empty() {
             current_depth
         } else {
             node.children
                 .iter()
-                .map(|child| self.calculate_depth(child, current_depth + 1))
+                .map(|child| Self::calculate_depth(child, current_depth + 1))
                 .max()
                 .unwrap_or(current_depth)
         }
     }
 
     fn has_cycle_helper(
-        &self,
         node: &CallNode,
         visited: &mut HashSet<FunctionDef>,
         path: &mut HashSet<FunctionDef>,
@@ -236,7 +231,7 @@ impl CallTree {
         path.insert(node.def.clone());
 
         for child in &node.children {
-            if self.has_cycle_helper(child, visited, path) {
+            if Self::has_cycle_helper(child, visited, path) {
                 return true;
             }
         }

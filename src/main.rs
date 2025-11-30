@@ -46,7 +46,7 @@ fn validate_depth(s: &str) -> Result<usize, String> {
         .parse()
         .map_err(|_| format!("'{}' is not a valid number", s))?;
 
-    if depth < 1 || depth > 10 {
+    if !(1..=10).contains(&depth) {
         return Err(format!("depth must be between 1 and 10, got {}", depth));
     }
 
@@ -88,9 +88,11 @@ fn main() {
                 print!("{}", output);
             }
             Ok(None) => {
-                eprintln!("{} Function '{}' not found in codebase",
+                eprintln!(
+                    "{} Function '{}' not found in codebase",
                     "Error:".red().bold(),
-                    cli.search_text.bold());
+                    cli.search_text.bold()
+                );
                 eprintln!();
                 eprintln!("{}", "Possible reasons:".yellow().bold());
                 eprintln!("  • The function doesn't exist in the current directory");
@@ -98,15 +100,24 @@ fn main() {
                 eprintln!("  • The function is defined in a different directory");
                 eprintln!();
                 eprintln!("{}", "Next steps:".green().bold());
-                eprintln!("  1. Verify function name: {}", format!("rg 'function {}'", cli.search_text).cyan());
-                eprintln!("  2. Check if you're in the right directory: {}", "pwd".cyan());
-                eprintln!("  3. Search for similar function names: {}", format!("rg 'function.*{}'", cli.search_text).cyan());
+                eprintln!(
+                    "  1. Verify function name: {}",
+                    format!("rg 'function {}'", cli.search_text).cyan()
+                );
+                eprintln!(
+                    "  2. Check if you're in the right directory: {}",
+                    "pwd".cyan()
+                );
+                eprintln!(
+                    "  3. Search for similar function names: {}",
+                    format!("rg 'function.*{}'", cli.search_text).cyan()
+                );
                 process::exit(1);
             }
             Err(e) => {
                 // Handle errors with user-friendly messages and helpful guidance
-                use cs::SearchError;
                 use colored::Colorize;
+                use cs::SearchError;
 
                 match e {
                     SearchError::Io(io_err) => {
@@ -126,7 +137,10 @@ fn main() {
                         eprintln!("  • Check if source files are accessible");
                         eprintln!("  • Try running from the project root directory");
                         eprintln!();
-                        eprintln!("{}", "If this error persists, please report it at:".yellow());
+                        eprintln!(
+                            "{}",
+                            "If this error persists, please report it at:".yellow()
+                        );
                         eprintln!("https://github.com/weima/code-search/issues");
                         process::exit(1);
                     }
@@ -136,7 +150,7 @@ fn main() {
     } else {
         // Use the new orchestrator and formatter for i18n search
         let current_dir = env::current_dir().unwrap_or_else(|_| Path::new(".").to_path_buf());
-        
+
         let query = cs::SearchQuery::new(cli.search_text.clone())
             .with_case_sensitive(cli.case_sensitive)
             .with_base_dir(current_dir);
@@ -155,33 +169,59 @@ fn main() {
             }
             Err(e) => {
                 // Handle errors with user-friendly messages and helpful guidance
-                use cs::SearchError;
                 use colored::Colorize;
+                use cs::SearchError;
 
                 match e {
-                    SearchError::NoTranslationFiles { text, searched_paths } => {
-                        eprintln!("{} No translation files found containing '{}'", "Error:".red().bold(), text.bold());
+                    SearchError::NoTranslationFiles {
+                        text,
+                        searched_paths,
+                    } => {
+                        eprintln!(
+                            "{} No translation files found containing '{}'",
+                            "Error:".red().bold(),
+                            text.bold()
+                        );
                         eprintln!();
                         eprintln!("{} {}", "Searched in:".yellow().bold(), searched_paths);
                         eprintln!();
                         eprintln!("{}", "Possible reasons:".yellow().bold());
                         eprintln!("  • No YAML translation files exist in this directory");
-                        eprintln!("  • The text '{}' doesn't appear in any translation files", text);
+                        eprintln!(
+                            "  • The text '{}' doesn't appear in any translation files",
+                            text
+                        );
                         eprintln!("  • Translation files are in a different location");
                         eprintln!();
                         eprintln!("{}", "Next steps:".green().bold());
-                        eprintln!("  1. Check if you're in the right directory: {}", "pwd".cyan());
-                        eprintln!("  2. Look for translation files: {}", "find . -name '*.yml' -o -name '*.yaml'".cyan());
-                        eprintln!("  3. Verify the text exists: {}", format!("grep -r '{}' .", text).cyan());
+                        eprintln!(
+                            "  1. Check if you're in the right directory: {}",
+                            "pwd".cyan()
+                        );
+                        eprintln!(
+                            "  2. Look for translation files: {}",
+                            "find . -name '*.yml' -o -name '*.yaml'".cyan()
+                        );
+                        eprintln!(
+                            "  3. Verify the text exists: {}",
+                            format!("grep -r '{}' .", text).cyan()
+                        );
                         process::exit(1);
                     }
                     SearchError::YamlParseError { file, reason } => {
-                        eprintln!("{} Failed to parse YAML file: {}", "Error:".red().bold(), file.display().to_string().bold());
+                        eprintln!(
+                            "{} Failed to parse YAML file: {}",
+                            "Error:".red().bold(),
+                            file.display().to_string().bold()
+                        );
                         eprintln!();
                         eprintln!("{} {}", "Reason:".yellow().bold(), reason);
                         eprintln!();
                         eprintln!("{}", "Next steps:".green().bold());
-                        eprintln!("  1. Check YAML syntax: {}", format!("cat {}", file.display()).cyan());
+                        eprintln!(
+                            "  1. Check YAML syntax: {}",
+                            format!("cat {}", file.display()).cyan()
+                        );
                         eprintln!("  2. Validate YAML online: https://www.yamllint.com/");
                         eprintln!("  3. Common issues:");
                         eprintln!("     • Incorrect indentation (use spaces, not tabs)");
@@ -190,18 +230,26 @@ fn main() {
                         process::exit(1);
                     }
                     SearchError::NoCodeReferences { key, file } => {
-                        eprintln!("{} Translation key found but not used in code", "Warning:".yellow().bold());
+                        eprintln!(
+                            "{} Translation key found but not used in code",
+                            "Warning:".yellow().bold()
+                        );
                         eprintln!();
                         eprintln!("{} {}", "Key:".bold(), key.cyan());
                         eprintln!("{} {}", "File:".bold(), file.display());
                         eprintln!();
                         eprintln!("{}", "Possible reasons:".yellow().bold());
                         eprintln!("  • The key exists but is not yet used in code");
-                        eprintln!("  • The key is used dynamically (not detectable by static search)");
+                        eprintln!(
+                            "  • The key is used dynamically (not detectable by static search)"
+                        );
                         eprintln!("  • The code files are outside the search scope");
                         eprintln!();
                         eprintln!("{}", "Next steps:".green().bold());
-                        eprintln!("  1. Search manually: {}", format!("grep -r '{}' .", key).cyan());
+                        eprintln!(
+                            "  1. Search manually: {}",
+                            format!("grep -r '{}' .", key).cyan()
+                        );
                         eprintln!("  2. Check if key is used dynamically");
                         eprintln!("  3. This might be an unused translation (safe to remove)");
                         process::exit(0); // Exit successfully since this is just a warning
@@ -218,7 +266,10 @@ fn main() {
                     _ => {
                         eprintln!("{} {}", "Error:".red().bold(), e);
                         eprintln!();
-                        eprintln!("{}", "If this error persists, please report it at:".yellow());
+                        eprintln!(
+                            "{}",
+                            "If this error persists, please report it at:".yellow()
+                        );
                         eprintln!("https://github.com/weima/code-search/issues");
                         process::exit(1);
                     }

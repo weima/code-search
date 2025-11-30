@@ -108,7 +108,9 @@ fn test_trace_function_not_found() {
         .current_dir("tests/fixtures/code-examples")
         .assert()
         .failure()
-        .stderr(predicate::str::contains("Function 'nonExistentFunction123' not found"))
+        .stderr(predicate::str::contains(
+            "Function 'nonExistentFunction123' not found",
+        ))
         .stderr(predicate::str::contains("Possible reasons:"))
         .stderr(predicate::str::contains("Next steps:"));
 }
@@ -122,7 +124,9 @@ fn test_trace_function_not_found_shows_helpful_tips() {
         .failure()
         .stderr(predicate::str::contains("The function doesn't exist"))
         .stderr(predicate::str::contains("Verify function name"))
-        .stderr(predicate::str::contains("Check if you're in the right directory"));
+        .stderr(predicate::str::contains(
+            "Check if you're in the right directory",
+        ));
 }
 
 #[test]

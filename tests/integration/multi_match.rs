@@ -2,7 +2,6 @@
 ///
 /// These tests verify that the tool can find and display all locations where
 /// a translation key is used across multiple files.
-
 use assert_cmd::Command;
 use predicates::prelude::*;
 use std::fs;
@@ -112,8 +111,11 @@ fn test_multiple_keys_with_same_value() {
     fs::create_dir_all(&yaml_path).unwrap();
 
     let yaml_file = yaml_path.join("en.yml");
-    fs::write(&yaml_file,
-        "en:\n  key1: \"submit\"\n  key2: \"submit\"\n  nested:\n    key3: \"submit\"").unwrap();
+    fs::write(
+        &yaml_file,
+        "en:\n  key1: \"submit\"\n  key2: \"submit\"\n  nested:\n    key3: \"submit\"",
+    )
+    .unwrap();
 
     let mut cmd = Command::cargo_bin("cs").unwrap();
     cmd.arg("submit")
@@ -144,7 +146,9 @@ fn test_deeply_nested_keys() {
         .current_dir(temp_dir.path())
         .assert()
         .success()
-        .stdout(predicate::str::contains("app.views.invoice.form.labels.add_new"));
+        .stdout(predicate::str::contains(
+            "app.views.invoice.form.labels.add_new",
+        ));
 }
 
 #[test]
@@ -170,7 +174,8 @@ fn test_no_duplicate_results() {
     // Then each unique location is shown only once (no duplicates)
 
     let mut cmd = Command::cargo_bin("cs").unwrap();
-    let output = cmd.arg("add new")
+    let output = cmd
+        .arg("add new")
         .current_dir("tests/fixtures/rails-app")
         .output()
         .unwrap();

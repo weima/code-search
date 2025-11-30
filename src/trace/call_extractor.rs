@@ -353,13 +353,12 @@ impl CallExtractor {
                 }
 
                 // Skip function definition lines where the variant is being defined
-                if trimmed.starts_with("function ")
+                if (trimmed.starts_with("function ")
                     || trimmed.starts_with("def ")
-                    || trimmed.starts_with("fn ")
+                    || trimmed.starts_with("fn "))
+                    && trimmed.contains(&variant)
                 {
-                    if trimmed.contains(&variant) {
-                        continue;
-                    }
+                    continue;
                 }
 
                 // Determine the calling function

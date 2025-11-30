@@ -45,7 +45,8 @@ impl TreeFormatter {
             output.push_str(&format!("{}\n", "=== Code References ===".bold()));
             for code_ref in &result.code_references {
                 // Highlight the key in the context
-                let highlighted_context = self.highlight_key_in_context(&code_ref.context, &code_ref.key_path);
+                let highlighted_context =
+                    self.highlight_key_in_context(&code_ref.context, &code_ref.key_path);
                 output.push_str(&format!(
                     "{}:{}:{}\n",
                     code_ref.file.display(),
@@ -80,7 +81,7 @@ impl TreeFormatter {
 
     fn format_forward_tree(&self, tree: &CallTree) -> String {
         let mut output = String::new();
-        self.format_call_node(&tree.root, &mut output, "", true, true);
+        Self::format_call_node(&tree.root, &mut output, "", true, true);
         output
     }
 
@@ -91,14 +92,14 @@ impl TreeFormatter {
         // So we need to traverse from leaves to root, or just print the tree inverted.
         // The requirement says: "Formats backward trace as chains (callers -> function)"
         // Example: blah1 -> foo1 -> bar
-        
+
         // Let's traverse the tree and collect paths from leaves to root.
-        // Since the tree is built with target as root and callers as children, 
+        // Since the tree is built with target as root and callers as children,
         // a path from a leaf to root represents a call chain: leaf calls ... calls root.
-        
+
         let mut paths = Vec::new();
-        self.collect_backward_paths(&tree.root, vec![], &mut paths);
-        
+        Self::collect_backward_paths(&tree.root, vec![], &mut paths);
+
         for path in paths {
             // path is [leaf, ..., root]
             // We want to print: leaf -> ... -> root
@@ -110,15 +111,23 @@ impl TreeFormatter {
             // So path is [target, caller, caller_of_caller].
             // We want: caller_of_caller -> caller -> target.
             // So we need to reverse the path.
-            
+
             let mut display_path = path.clone();
             display_path.reverse();
-            
-            let mut chain = display_path.iter()
-                .map(|node| format!("{} ({}:{})", node.def.name.bold(), node.def.file.display(), node.def.line))
+
+            let mut chain = display_path
+                .iter()
+                .map(|node| {
+                    format!(
+                        "{} ({}:{})",
+                        node.def.name.bold(),
+                        node.def.file.display(),
+                        node.def.line
+                    )
+                })
                 .collect::<Vec<_>>()
                 .join(" -> ");
-            
+
             // Check if the leaf (first in display_path) was truncated
             if let Some(first) = display_path.first() {
                 if first.truncated {
@@ -129,23 +138,25 @@ impl TreeFormatter {
             output.push_str(&chain);
             output.push('\n');
         }
-        
+
         if output.is_empty() {
             // If no callers found, just print the root
-             output.push_str(&format!("{} (No incoming calls found)\n", tree.root.def.name));
+            output.push_str(&format!(
+                "{} (No incoming calls found)\n",
+                tree.root.def.name
+            ));
         }
 
         output
     }
 
     fn collect_backward_paths<'a>(
-        &'a self,
         node: &'a CallNode,
         mut current_path: Vec<&'a CallNode>,
         paths: &mut Vec<Vec<&'a CallNode>>,
     ) {
         current_path.push(node);
-        
+
         if node.children.is_empty() {
             // Leaf node (a caller that is not called by anyone found/searched)
             // or depth limit reached.
@@ -158,13 +169,12 @@ impl TreeFormatter {
             paths.push(current_path);
         } else {
             for child in &node.children {
-                self.collect_backward_paths(child, current_path.clone(), paths);
+                Self::collect_backward_paths(child, current_path.clone(), paths);
             }
         }
     }
 
     fn format_call_node(
-        &self,
         node: &CallNode,
         output: &mut String,
         prefix: &str,
@@ -183,11 +193,11 @@ impl TreeFormatter {
             node.def.line
         );
         output.push_str(&content);
-        
+
         if node.truncated {
-             output.push_str(&" [depth limit reached]".red().to_string());
+            output.push_str(&" [depth limit reached]".red().to_string());
         }
-        
+
         output.push('\n');
 
         let child_count = node.children.len();
@@ -198,10 +208,9 @@ impl TreeFormatter {
             } else {
                 format!("{}{}   ", prefix, if is_last { " " } else { "│" })
             };
-            self.format_call_node(child, output, &child_prefix, is_last_child, false);
+            Self::format_call_node(child, output, &child_prefix, is_last_child, false);
         }
     }
-
 
     /// Format a single node and its children
     fn format_node(
@@ -224,11 +233,7 @@ impl TreeFormatter {
 
         // Add location if present
         if let Some(location) = &node.location {
-            let location_str = format!(
-                " ({}:{})",
-                location.file.display(),
-                location.line
-            );
+            let location_str = format!(" ({}:{})", location.file.display(), location.line);
             output.push_str(&location_str);
         }
 
@@ -263,7 +268,7 @@ impl TreeFormatter {
             }
             NodeType::CodeRef => {
                 // Truncate code context
-                let truncated = self.truncate(&node.content.trim(), self.max_width - 30);
+                let truncated = self.truncate(node.content.trim(), self.max_width - 30);
                 format!("Code: {}", truncated)
             }
         }
@@ -343,10 +348,7 @@ mod tests {
             Location::new(PathBuf::from("en.yml"), 4),
         );
 
-        let mut key_path = TreeNode::new(
-            NodeType::KeyPath,
-            "invoice.labels.add_new".to_string(),
-        );
+        let mut key_path = TreeNode::new(NodeType::KeyPath, "invoice.labels.add_new".to_string());
 
         let code_ref = TreeNode::with_location(
             NodeType::CodeRef,

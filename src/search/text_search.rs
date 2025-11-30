@@ -83,7 +83,7 @@ impl TextSearcher {
             };
 
             // Skip directories
-            if entry.file_type().map_or(true, |ft| ft.is_dir()) {
+            if entry.file_type().is_none_or(|ft| ft.is_dir()) {
                 continue;
             }
 
@@ -94,9 +94,7 @@ impl TextSearcher {
             let path_buf = path.to_path_buf();
 
             // Build searcher
-            let mut searcher = SearcherBuilder::new()
-                .line_number(true)
-                .build();
+            let mut searcher = SearcherBuilder::new().line_number(true).build();
 
             // Search the file
             let result = searcher.search_path(
@@ -115,7 +113,7 @@ impl TextSearcher {
             );
 
             // Ignore search errors for individual files
-            if let Err(_) = result {
+            if result.is_err() {
                 continue;
             }
         }
@@ -145,7 +143,11 @@ mod tests {
     #[test]
     fn test_basic_search() {
         let temp_dir = TempDir::new().unwrap();
-        fs::write(temp_dir.path().join("test.txt"), "hello world\nfoo bar\nhello again").unwrap();
+        fs::write(
+            temp_dir.path().join("test.txt"),
+            "hello world\nfoo bar\nhello again",
+        )
+        .unwrap();
 
         let searcher = TextSearcher::new(temp_dir.path().to_path_buf());
         let matches = searcher.search("hello").unwrap();
@@ -160,7 +162,11 @@ mod tests {
     #[test]
     fn test_case_insensitive_default() {
         let temp_dir = TempDir::new().unwrap();
-        fs::write(temp_dir.path().join("test.txt"), "Hello World\nHELLO\nhello").unwrap();
+        fs::write(
+            temp_dir.path().join("test.txt"),
+            "Hello World\nHELLO\nhello",
+        )
+        .unwrap();
 
         let searcher = TextSearcher::new(temp_dir.path().to_path_buf());
         let matches = searcher.search("hello").unwrap();
@@ -171,10 +177,13 @@ mod tests {
     #[test]
     fn test_case_sensitive() {
         let temp_dir = TempDir::new().unwrap();
-        fs::write(temp_dir.path().join("test.txt"), "Hello World\nHELLO\nhello").unwrap();
+        fs::write(
+            temp_dir.path().join("test.txt"),
+            "Hello World\nHELLO\nhello",
+        )
+        .unwrap();
 
-        let searcher = TextSearcher::new(temp_dir.path().to_path_buf())
-            .case_sensitive(true);
+        let searcher = TextSearcher::new(temp_dir.path().to_path_buf()).case_sensitive(true);
         let matches = searcher.search("hello").unwrap();
 
         assert_eq!(matches.len(), 1); // Should only match exact case
@@ -219,8 +228,7 @@ mod tests {
         fs::write(temp_dir.path().join("ignored.txt"), "target content").unwrap();
         fs::write(temp_dir.path().join("tracked.txt"), "target content").unwrap();
 
-        let searcher = TextSearcher::new(temp_dir.path().to_path_buf())
-            .respect_gitignore(true);
+        let searcher = TextSearcher::new(temp_dir.path().to_path_buf()).respect_gitignore(true);
         let matches = searcher.search("target").unwrap();
 
         // Should only find in tracked.txt
@@ -242,8 +250,7 @@ mod tests {
         fs::write(temp_dir.path().join("ignored.txt"), "target content").unwrap();
         fs::write(temp_dir.path().join("tracked.txt"), "target content").unwrap();
 
-        let searcher = TextSearcher::new(temp_dir.path().to_path_buf())
-            .respect_gitignore(false);
+        let searcher = TextSearcher::new(temp_dir.path().to_path_buf()).respect_gitignore(false);
         let matches = searcher.search("target").unwrap();
 
         // Should find in both files
@@ -271,7 +278,11 @@ mod tests {
     #[test]
     fn test_special_characters() {
         let temp_dir = TempDir::new().unwrap();
-        fs::write(temp_dir.path().join("test.txt"), "price: $19.99\nurl: http://example.com").unwrap();
+        fs::write(
+            temp_dir.path().join("test.txt"),
+            "price: $19.99\nurl: http://example.com",
+        )
+        .unwrap();
 
         let searcher = TextSearcher::new(temp_dir.path().to_path_buf());
 

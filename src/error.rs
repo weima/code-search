@@ -12,7 +12,9 @@ pub enum SearchError {
     },
 
     /// Failed to parse YAML file
-    #[error("Failed to parse YAML file {file}:\n{reason}\n\nTip: Verify the YAML syntax is correct")]
+    #[error(
+        "Failed to parse YAML file {file}:\n{reason}\n\nTip: Verify the YAML syntax is correct"
+    )]
     YamlParseError { file: PathBuf, reason: String },
 
     /// Translation key found but no code references detected
@@ -95,7 +97,8 @@ mod tests {
 
     #[test]
     fn test_no_translation_files_with_custom_paths() {
-        let err = SearchError::no_translation_files_with_paths("test", "custom/path1, custom/path2");
+        let err =
+            SearchError::no_translation_files_with_paths("test", "custom/path1, custom/path2");
         let msg = err.to_string();
         assert!(msg.contains("test"));
         assert!(msg.contains("custom/path1"));

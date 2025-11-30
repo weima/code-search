@@ -47,11 +47,7 @@ impl TreeNode {
     }
 
     /// Create a TreeNode with a location
-    pub fn with_location(
-        node_type: NodeType,
-        content: String,
-        location: Location,
-    ) -> Self {
+    pub fn with_location(node_type: NodeType, content: String, location: Location) -> Self {
         Self {
             node_type,
             content,
@@ -85,7 +81,12 @@ impl TreeNode {
         if self.children.is_empty() {
             1
         } else {
-            1 + self.children.iter().map(|c| c.max_depth()).max().unwrap_or(0)
+            1 + self
+                .children
+                .iter()
+                .map(|c| c.max_depth())
+                .max()
+                .unwrap_or(0)
         }
     }
 }
@@ -242,30 +243,27 @@ mod tests {
     fn test_complex_tree_structure() {
         // Build a tree: root -> translation -> key_path -> code_ref
         let mut root = TreeNode::new(NodeType::Root, "add new".to_string());
-        
+
         let mut translation = TreeNode::with_location(
             NodeType::Translation,
             "add_new: 'add new'".to_string(),
             Location::new(PathBuf::from("en.yml"), 4),
         );
-        
-        let mut key_path = TreeNode::new(
-            NodeType::KeyPath,
-            "invoice.labels.add_new".to_string(),
-        );
-        
+
+        let mut key_path = TreeNode::new(NodeType::KeyPath, "invoice.labels.add_new".to_string());
+
         let code_ref = TreeNode::with_location(
             NodeType::CodeRef,
             "I18n.t('invoice.labels.add_new')".to_string(),
             Location::new(PathBuf::from("invoices.ts"), 14),
         );
-        
+
         key_path.add_child(code_ref);
         translation.add_child(key_path);
         root.add_child(translation);
-        
+
         let tree = ReferenceTree::new(root);
-        
+
         assert_eq!(tree.node_count(), 4);
         assert_eq!(tree.max_depth(), 4);
         assert!(tree.has_results());

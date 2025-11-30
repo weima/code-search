@@ -1,5 +1,5 @@
 [package]
-name = "cs"
+name = "code-search-cli"
 version = "0.1.0"
 edition = "2021"
 authors = ["Code Search Contributors"]
@@ -9,6 +9,10 @@ repository = "https://github.com/weima/code-search"
 readme = "README.md"
 keywords = ["cli", "i18n", "search", "translation", "code-search"]
 categories = ["command-line-utilities", "development-tools"]
+
+[lib]
+name = "cs"
+path = "src/lib.rs"
 
 [[bin]]
 name = "cs"
