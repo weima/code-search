@@ -1,6 +1,10 @@
 use crate::error::{Result, SearchError};
+use grep_regex::RegexMatcherBuilder;
+use grep_searcher::sinks::UTF8;
+use grep_searcher::SearcherBuilder;
+use ignore::WalkBuilder;
 use std::path::PathBuf;
-use std::process::Command;
+use std::sync::{Arc, Mutex};
 
 /// Represents a single match from a text search
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -13,7 +17,7 @@ pub struct Match {
     pub content: String,
 }
 
-/// Text searcher that wraps ripgrep for fast text searching
+/// Text searcher that uses ripgrep as a library for fast text searching
 pub struct TextSearcher {
     /// Whether to respect .gitignore files
     respect_gitignore: bool,
@@ -45,15 +49,6 @@ impl TextSearcher {
         self
     }
 
-    /// Check if ripgrep is available in PATH
-    fn check_ripgrep_installed() -> Result<()> {
-        Command::new("rg")
-            .arg("--version")
-            .output()
-            .map_err(|_| SearchError::RipgrepNotFound)?;
-        Ok(())
-    }
-
     /// Search for text and return all matches
     ///
     /// # Arguments
@@ -62,83 +57,74 @@ impl TextSearcher {
     /// # Returns
     /// A vector of Match structs containing file path, line number, and content
     pub fn search(&self, text: &str) -> Result<Vec<Match>> {
-        // Check if ripgrep is installed
-        Self::check_ripgrep_installed()?;
+        // Build the regex matcher with fixed string (literal) matching
+        let matcher = RegexMatcherBuilder::new()
+            .case_insensitive(!self.case_sensitive)
+            .fixed_strings(true) // Literal string matching, not regex
+            .build(text)
+            .map_err(|e| SearchError::Generic(format!("Failed to build matcher: {}", e)))?;
 
-        // Build ripgrep command
-        let mut cmd = Command::new("rg");
+        // Build the file walker with .gitignore support
+        let walker = WalkBuilder::new(&self.base_dir)
+            .git_ignore(self.respect_gitignore)
+            .git_global(self.respect_gitignore)
+            .git_exclude(self.respect_gitignore)
+            .hidden(false) // Don't skip hidden files by default
+            .build();
 
-        // Set the directory to search in
-        cmd.current_dir(&self.base_dir);
+        // Shared vector to collect matches from all threads
+        let matches = Arc::new(Mutex::new(Vec::new()));
 
-        // Add flags
-        cmd.arg("--line-number") // Include line numbers
-            .arg("--no-heading") // Don't group by file
-            .arg("--with-filename"); // Always include filename
+        // Search each file
+        for entry in walker {
+            let entry = match entry {
+                Ok(e) => e,
+                Err(_) => continue, // Skip entries we can't read
+            };
 
-        // Case sensitivity
-        if !self.case_sensitive {
-            cmd.arg("--ignore-case");
-        }
-
-        // Respect .gitignore
-        if !self.respect_gitignore {
-            cmd.arg("--no-ignore");
-        }
-
-        // Add search text (use -F for fixed string, not regex)
-        cmd.arg("--fixed-strings").arg(text);
-
-        // Execute the command
-        let output = cmd.output().map_err(|e| {
-            SearchError::RipgrepExecutionFailed(format!("Failed to execute ripgrep: {}", e))
-        })?;
-
-        // ripgrep returns exit code 1 when no matches found (not an error)
-        if output.status.code() == Some(1) && output.stdout.is_empty() {
-            return Ok(Vec::new());
-        }
-
-        // Parse the output
-        let stdout = String::from_utf8(output.stdout)?;
-
-        self.parse_output(&stdout)
-    }
-
-    /// Parse ripgrep output into Match structs
-    ///
-    /// Expected format: "file:line:content"
-    fn parse_output(&self, output: &str) -> Result<Vec<Match>> {
-        let mut matches = Vec::new();
-
-        for line in output.lines() {
-            if line.is_empty() {
+            // Skip directories
+            if entry.file_type().map_or(true, |ft| ft.is_dir()) {
                 continue;
             }
 
-            // Split on first two colons: file:line:content
-            let parts: Vec<&str> = line.splitn(3, ':').collect();
+            let path = entry.path();
 
-            if parts.len() != 3 {
-                // Skip malformed lines
+            // Clone Arc for the closure
+            let matches_clone = Arc::clone(&matches);
+            let path_buf = path.to_path_buf();
+
+            // Build searcher
+            let mut searcher = SearcherBuilder::new()
+                .line_number(true)
+                .build();
+
+            // Search the file
+            let result = searcher.search_path(
+                &matcher,
+                path,
+                UTF8(|line_num, line_content| {
+                    // Collect the match
+                    let mut matches = matches_clone.lock().unwrap();
+                    matches.push(Match {
+                        file: path_buf.clone(),
+                        line: line_num as usize,
+                        content: line_content.trim_end().to_string(),
+                    });
+                    Ok(true) // Continue searching
+                }),
+            );
+
+            // Ignore search errors for individual files
+            if let Err(_) = result {
                 continue;
             }
-
-            let file = self.base_dir.join(parts[0]);
-            let line_number = parts[1].parse::<usize>().unwrap_or(0);
-            let content = parts[2].to_string();
-
-            if line_number == 0 {
-                // Skip if line number couldn't be parsed
-                continue;
-            }
-
-            matches.push(Match {
-                file,
-                line: line_number,
-                content,
-            });
         }
+
+        // Extract matches from Arc<Mutex<Vec>>
+        let matches = match Arc::try_unwrap(matches) {
+            Ok(mutex) => mutex.into_inner().unwrap(),
+            Err(arc) => arc.lock().unwrap().clone(),
+        };
 
         Ok(matches)
     }
@@ -146,77 +132,122 @@ impl TextSearcher {
 
 impl Default for TextSearcher {
     fn default() -> Self {
-        Self::new(std::env::current_dir().unwrap())
+        Self::new(std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use tempfile::TempDir;
 
     #[test]
-    fn test_parse_output_single_line() {
-        let base_dir = std::env::current_dir().unwrap();
-        let searcher = TextSearcher::new(base_dir.clone());
-        let output = "src/main.rs:42:    let value = \"test\";";
+    fn test_basic_search() {
+        let temp_dir = TempDir::new().unwrap();
+        fs::write(temp_dir.path().join("test.txt"), "hello world\nfoo bar\nhello again").unwrap();
 
-        let matches = searcher.parse_output(output).unwrap();
+        let searcher = TextSearcher::new(temp_dir.path().to_path_buf());
+        let matches = searcher.search("hello").unwrap();
 
-        assert_eq!(matches.len(), 1);
-        assert_eq!(matches[0].file, base_dir.join("src/main.rs"));
-        assert_eq!(matches[0].line, 42);
-        assert_eq!(matches[0].content, "    let value = \"test\";");
+        assert_eq!(matches.len(), 2);
+        assert_eq!(matches[0].line, 1);
+        assert_eq!(matches[0].content, "hello world");
+        assert_eq!(matches[1].line, 3);
+        assert_eq!(matches[1].content, "hello again");
     }
 
     #[test]
-    fn test_parse_output_multiple_lines() {
-        let base_dir = std::env::current_dir().unwrap();
-        let searcher = TextSearcher::new(base_dir.clone());
-        let output = "src/main.rs:10:first line\nsrc/lib.rs:20:second line\nsrc/main.rs:30:third line";
+    fn test_case_insensitive_default() {
+        let temp_dir = TempDir::new().unwrap();
+        fs::write(temp_dir.path().join("test.txt"), "Hello World\nHELLO\nhello").unwrap();
 
-        let matches = searcher.parse_output(output).unwrap();
+        let searcher = TextSearcher::new(temp_dir.path().to_path_buf());
+        let matches = searcher.search("hello").unwrap();
 
-        assert_eq!(matches.len(), 3);
-        assert_eq!(matches[0].file, base_dir.join("src/main.rs"));
-        assert_eq!(matches[0].line, 10);
-        assert_eq!(matches[1].file, base_dir.join("src/lib.rs"));
-        assert_eq!(matches[1].line, 20);
-        assert_eq!(matches[2].file, base_dir.join("src/main.rs"));
-        assert_eq!(matches[2].line, 30);
+        assert_eq!(matches.len(), 3); // Should match all variations
     }
 
     #[test]
-    fn test_parse_output_with_colons_in_content() {
-        let searcher = TextSearcher::new(std::env::current_dir().unwrap());
-        let output = "config.yml:5:url: http://example.com:8080";
+    fn test_case_sensitive() {
+        let temp_dir = TempDir::new().unwrap();
+        fs::write(temp_dir.path().join("test.txt"), "Hello World\nHELLO\nhello").unwrap();
 
-        let matches = searcher.parse_output(output).unwrap();
+        let searcher = TextSearcher::new(temp_dir.path().to_path_buf())
+            .case_sensitive(true);
+        let matches = searcher.search("hello").unwrap();
 
-        assert_eq!(matches.len(), 1);
-        assert_eq!(matches[0].content, "url: http://example.com:8080");
+        assert_eq!(matches.len(), 1); // Should only match exact case
+        assert_eq!(matches[0].content, "hello");
     }
 
     #[test]
-    fn test_parse_output_empty() {
-        let searcher = TextSearcher::new(std::env::current_dir().unwrap());
-        let output = "";
+    fn test_no_matches() {
+        let temp_dir = TempDir::new().unwrap();
+        fs::write(temp_dir.path().join("test.txt"), "foo bar baz").unwrap();
 
-        let matches = searcher.parse_output(output).unwrap();
+        let searcher = TextSearcher::new(temp_dir.path().to_path_buf());
+        let matches = searcher.search("notfound").unwrap();
 
         assert_eq!(matches.len(), 0);
     }
 
     #[test]
-    fn test_parse_output_malformed_skipped() {
-        let searcher = TextSearcher::new(std::env::current_dir().unwrap());
-        let output = "src/main.rs:10:valid line\nmalformed line\nsrc/lib.rs:20:another valid";
+    fn test_multiple_files() {
+        let temp_dir = TempDir::new().unwrap();
+        fs::write(temp_dir.path().join("file1.txt"), "target line 1").unwrap();
+        fs::write(temp_dir.path().join("file2.txt"), "target line 2").unwrap();
+        fs::write(temp_dir.path().join("file3.txt"), "other content").unwrap();
 
-        let matches = searcher.parse_output(output).unwrap();
+        let searcher = TextSearcher::new(temp_dir.path().to_path_buf());
+        let matches = searcher.search("target").unwrap();
 
-        // Should skip malformed line
         assert_eq!(matches.len(), 2);
-        assert_eq!(matches[0].line, 10);
-        assert_eq!(matches[1].line, 20);
+    }
+
+    #[test]
+    fn test_gitignore_respected() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Initialize git repository (required for .gitignore to work)
+        fs::create_dir(temp_dir.path().join(".git")).unwrap();
+
+        // Create .gitignore
+        fs::write(temp_dir.path().join(".gitignore"), "ignored.txt\n").unwrap();
+
+        // Create files
+        fs::write(temp_dir.path().join("ignored.txt"), "target content").unwrap();
+        fs::write(temp_dir.path().join("tracked.txt"), "target content").unwrap();
+
+        let searcher = TextSearcher::new(temp_dir.path().to_path_buf())
+            .respect_gitignore(true);
+        let matches = searcher.search("target").unwrap();
+
+        // Should only find in tracked.txt
+        assert_eq!(matches.len(), 1);
+        assert!(matches[0].file.ends_with("tracked.txt"));
+    }
+
+    #[test]
+    fn test_gitignore_disabled() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Initialize git repository
+        fs::create_dir(temp_dir.path().join(".git")).unwrap();
+
+        // Create .gitignore
+        fs::write(temp_dir.path().join(".gitignore"), "ignored.txt\n").unwrap();
+
+        // Create files
+        fs::write(temp_dir.path().join("ignored.txt"), "target content").unwrap();
+        fs::write(temp_dir.path().join("tracked.txt"), "target content").unwrap();
+
+        let searcher = TextSearcher::new(temp_dir.path().to_path_buf())
+            .respect_gitignore(false);
+        let matches = searcher.search("target").unwrap();
+
+        // Should find in both files
+        assert_eq!(matches.len(), 2);
     }
 
     #[test]
@@ -228,12 +259,41 @@ mod tests {
         assert_eq!(searcher.case_sensitive, true);
         assert_eq!(searcher.respect_gitignore, false);
     }
-    
+
     #[test]
     fn test_default() {
         let searcher = TextSearcher::default();
 
         assert_eq!(searcher.case_sensitive, false);
         assert_eq!(searcher.respect_gitignore, true);
+    }
+
+    #[test]
+    fn test_special_characters() {
+        let temp_dir = TempDir::new().unwrap();
+        fs::write(temp_dir.path().join("test.txt"), "price: $19.99\nurl: http://example.com").unwrap();
+
+        let searcher = TextSearcher::new(temp_dir.path().to_path_buf());
+
+        // Test with special regex characters (should be treated as literals)
+        let matches = searcher.search("$19.99").unwrap();
+        assert_eq!(matches.len(), 1);
+
+        let matches = searcher.search("http://").unwrap();
+        assert_eq!(matches.len(), 1);
+    }
+
+    #[test]
+    fn test_line_numbers_accurate() {
+        let temp_dir = TempDir::new().unwrap();
+        let content = "line 1\nline 2\ntarget line 3\nline 4\ntarget line 5\nline 6";
+        fs::write(temp_dir.path().join("test.txt"), content).unwrap();
+
+        let searcher = TextSearcher::new(temp_dir.path().to_path_buf());
+        let matches = searcher.search("target").unwrap();
+
+        assert_eq!(matches.len(), 2);
+        assert_eq!(matches[0].line, 3);
+        assert_eq!(matches[1].line, 5);
     }
 }
