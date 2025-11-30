@@ -10,29 +10,21 @@ const BINARY_NAME = 'cs';
 const VERSION = '0.1.0'; // TODO: Get this from package.json dynamically in the future
 const REPO_URL = 'https://github.com/weima/code-search/releases/download';
 
-function getPlatform() {
+function getBinaryName() {
     const platform = os.platform();
-    const arch = os.arch();
-
     if (platform === 'darwin') {
-        return 'x86_64-apple-darwin'; // We only build x86_64 for mac currently (rosetta handles arm64)
+        return 'cs-darwin-amd64';
     } else if (platform === 'linux') {
-        return 'x86_64-unknown-linux-gnu';
+        return 'cs-linux-amd64';
     } else if (platform === 'win32') {
-        return 'x86_64-pc-windows-msvc';
+        return 'cs-windows-amd64.exe';
     } else {
         throw new Error(`Unsupported platform: ${platform}`);
     }
 }
 
-function getExtension() {
-    return os.platform() === 'win32' ? 'zip' : 'tar.gz';
-}
-
 async function downloadBinary() {
-    const target = getPlatform();
-    const ext = getExtension();
-    const fileName = `${PACKAGE_NAME}-v${VERSION}-${target}.${ext}`;
+    const fileName = getBinaryName();
     const url = `${REPO_URL}/v${VERSION}/${fileName}`;
     const binDir = path.join(__dirname, 'bin');
     const outputPath = path.join(binDir, fileName);
@@ -51,22 +43,12 @@ async function downloadBinary() {
         });
 
         fs.writeFileSync(outputPath, response.data);
-        console.log('Download complete. Extracting...');
+        console.log('Download complete.');
 
-        if (ext === 'zip') {
-            const zip = new AdmZip(outputPath);
-            zip.extractAllTo(binDir, true);
-            // Windows binary is likely inside a folder or just the exe
-            // We need to ensure 'cs.exe' is in binDir
-        } else {
-            await tar.x({
-                file: outputPath,
-                cwd: binDir
-            });
-        }
-
-        // Cleanup archive
-        fs.unlinkSync(outputPath);
+        // Rename to 'cs' (or 'cs.exe')
+        const finalName = os.platform() === 'win32' ? 'cs.exe' : 'cs';
+        const finalPath = path.join(binDir, finalName);
+        fs.renameSync(outputPath, finalPath);
 
         // Make executable (on unix)
         if (os.platform() !== 'win32') {
@@ -79,7 +61,7 @@ async function downloadBinary() {
         console.log('Installation successful!');
 
     } catch (error) {
-        console.error('Failed to download or extract binary:', error.message);
+        console.error('Failed to download binary:', error.message);
         process.exit(1);
     }
 }
