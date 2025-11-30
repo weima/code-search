@@ -2,24 +2,34 @@ use crate::error::Result;
 use crate::trace::{CallExtractor, FunctionDef, FunctionFinder};
 use std::collections::HashSet;
 
+/// Direction of the call graph trace
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TraceDirection {
+    /// Trace forward: which functions does this function call?
     Forward,
+    /// Trace backward: which functions call this function?
     Backward,
 }
 
+/// A node in the call graph tree
 #[derive(Debug, Clone)]
 pub struct CallNode {
+    /// The function definition for this node
     pub def: FunctionDef,
+    /// Child nodes (called functions or callers, depending on direction)
     pub children: Vec<CallNode>,
+    /// Whether the tree was truncated at this node due to depth limit
     pub truncated: bool,
 }
 
+/// Represents a complete call graph tree
 #[derive(Debug, Clone)]
 pub struct CallTree {
+    /// The root node of the tree (the starting function)
     pub root: CallNode,
 }
 
+/// Builds a call graph by recursively tracing function calls
 pub struct CallGraphBuilder<'a> {
     direction: TraceDirection,
     max_depth: usize,
@@ -28,6 +38,13 @@ pub struct CallGraphBuilder<'a> {
 }
 
 impl<'a> CallGraphBuilder<'a> {
+    /// Create a new CallGraphBuilder
+    ///
+    /// # Arguments
+    /// * `direction` - Whether to trace forward or backward
+    /// * `max_depth` - Maximum depth of the call tree
+    /// * `finder` - Service to find function definitions
+    /// * `extractor` - Service to extract calls from code
     pub fn new(
         direction: TraceDirection,
         max_depth: usize,
