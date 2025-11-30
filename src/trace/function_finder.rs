@@ -22,6 +22,10 @@ pub struct FunctionFinder {
 }
 
 impl FunctionFinder {
+    /// Create a new FunctionFinder
+    ///
+    /// # Arguments
+    /// * `base_dir` - The base directory of the project to search in
     pub fn new(base_dir: PathBuf) -> Self {
         Self {
             searcher: TextSearcher::new(base_dir.clone()),
@@ -132,6 +136,16 @@ impl FunctionFinder {
         result
     }
 
+    /// Find a single function definition, preferring exact matches
+    ///
+    /// This method first tries to find an exact match for the function name.
+    /// If that fails, it tries case-insensitive variants (snake_case, camelCase, PascalCase).
+    ///
+    /// # Arguments
+    /// * `func_name` - The name of the function to find
+    ///
+    /// # Returns
+    /// The best matching `FunctionDef`, or `None` if not found.
     pub fn find_function(&self, func_name: &str) -> Option<FunctionDef> {
         // Try exact match first
         if let Ok(mut defs) = self.find_definition(func_name) {

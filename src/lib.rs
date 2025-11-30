@@ -134,6 +134,18 @@ pub fn run_search(query: SearchQuery) -> Result<SearchResult> {
     })
 }
 
+/// Orchestrates the call graph tracing process
+///
+/// This function:
+/// 1. Finds the starting function definition
+/// 2. Extracts function calls or callers based on the direction
+/// 3. Builds a call graph tree up to the specified depth
+///
+/// # Arguments
+/// * `query` - Configuration for the trace operation
+///
+/// # Returns
+/// A `CallTree` representing the call graph, or `None` if the start function is not found.
 pub fn run_trace(query: TraceQuery) -> Result<Option<CallTree>> {
     let base_dir = query
         .base_dir
