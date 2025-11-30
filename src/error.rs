@@ -4,10 +4,6 @@ use thiserror::Error;
 /// Custom error type for code search operations
 #[derive(Debug, Error)]
 pub enum SearchError {
-    /// Ripgrep not found in PATH
-    #[error("ripgrep (rg) not found in PATH.\n\nPlease install ripgrep from https://github.com/BurntSushi/ripgrep#installation")]
-    RipgrepNotFound,
-
     /// No translation files found containing the search text
     #[error("No translation files found containing '{text}'.\n\nSearched in: {searched_paths}\n\nTip: Check your project structure or verify translation files exist")]
     NoTranslationFiles {
@@ -87,15 +83,6 @@ pub type Result<T> = std::result::Result<T, SearchError>;
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_ripgrep_not_found_error() {
-        let err = SearchError::RipgrepNotFound;
-        let msg = err.to_string();
-        assert!(msg.contains("ripgrep"));
-        assert!(msg.contains("PATH"));
-        assert!(msg.contains("https://github.com/BurntSushi/ripgrep"));
-    }
 
     #[test]
     fn test_no_translation_files_error() {
