@@ -10,6 +10,10 @@ readme = "README.md"
 keywords = ["cli", "i18n", "search", "translation", "code-search"]
 categories = ["command-line-utilities", "development-tools"]
 
+[lib]
+name = "cs"
+path = "src/lib.rs"
+
 [[bin]]
 name = "cs"
 path = "src/main.rs"
