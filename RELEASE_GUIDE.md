@@ -9,86 +9,47 @@ This document outlines the step-by-step process for releasing a new version of `
     - `cargo` (`cargo login`)
     - GitHub CLI (`gh auth login`) (optional, for checking status)
 
-## 1. Prepare the Release
+# Release Guide
 
-1.  **Update Changelog**: Add entry for the new version in `CHANGELOG.md`.
-2.  **Bump Rust Version**: Update `version` in `Cargo.toml`.
-    ```toml
-    [package]
-    version = "0.2.0"
-    ```
-3.  **Commit & Push**:
+This document outlines the automated process for releasing a new version of `code-search`.
+
+## Prerequisites
+- Clean git directory
+- Logged in to `npm` and `cargo`
+
+## 1. Prepare Release (Version Bump)
+
+This step creates a branch, bumps versions in `Cargo.toml`, `npm/package.json`, etc., and commits them.
+
+```bash
+./scripts/release.sh prepare v0.2.0
+```
+
+**Next Steps:**
+1.  Push the branch (`git push ...`).
+2.  Create a Pull Request and merge it to `main`.
+3.  **Tag the release** on GitHub:
     ```bash
-    git add CHANGELOG.md Cargo.toml
-    git commit -m "chore: bump version to 0.2.0"
-    git push origin main
-    ```
-
-## 2. GitHub Release (Automated)
-
-The GitHub Action `release.yml` handles the heavy lifting (building binaries, creating release).
-
-1.  **Tag the Release**:
-    ```bash
+    git checkout main
+    git pull
     git tag v0.2.0
     git push origin v0.2.0
     ```
-2.  **Wait**: Go to the [Actions tab](https://github.com/weima/code-search/actions) and wait for the "Release" workflow to complete.
-3.  **Verify**: Check the [Releases page](https://github.com/weima/code-search/releases) to ensure `v0.2.0` exists and has assets (`cs-darwin-amd64`, etc.).
 
-## 3. Crates.io Release
+## 2. Publish Release (Distribute)
 
-Once the GitHub release is live:
+Wait for the GitHub Action to finish building the release assets. Then run:
 
-1.  **Publish**:
-    ```bash
-    cargo publish
-    ```
+```bash
+./scripts/release.sh publish v0.2.0
+```
 
-## 4. NPM Release
+This will:
+1.  (Commented out) Publish to Crates.io
+2.  (Commented out) Publish to NPM
+3.  Create a branch `homebrew-v0.2.0`, update the formula with the new SHA256, and commit.
 
-The NPM package is a wrapper. It needs to know which version of the binary to download.
+**Next Steps:**
+1.  Push the homebrew branch.
+2.  Create a Pull Request to merge the formula update.
 
-1.  **Update Wrapper Version**: Edit `npm/package.json`.
-    *   *Note*: This usually matches the Rust version, but can be higher if we patch the wrapper only.
-    ```json
-    "version": "0.2.0"
-    ```
-2.  **Update Binary Target**: Edit `npm/install.js`.
-    ```javascript
-    const VERSION = '0.2.0'; // Must match the GitHub Release tag (without 'v')
-    ```
-3.  **Publish**:
-    ```bash
-    cd npm
-    npm publish
-    ```
-
-## 5. Homebrew Release
-
-Homebrew formulas point to specific release artifacts and their SHA256 hashes.
-
-1.  **Get SHA256**: Download the macOS binary from the new GitHub Release and hash it.
-    ```bash
-    # Example
-    curl -L -O https://github.com/weima/code-search/releases/download/v0.2.0/cs-darwin-amd64
-    shasum -a 256 cs-darwin-amd64
-    ```
-2.  **Update Formula**: Edit `Formula/cs.rb`.
-    *   Update `url` to the new version.
-    *   Update `sha256` with the hash from step 1.
-    *   Update `version`.
-3.  **Commit & Push**:
-    ```bash
-    git add Formula/cs.rb
-    git commit -m "chore: update homebrew formula to v0.2.0"
-    git push origin main
-    ```
-
-## Summary Checklist
-
-- [ ] Bump `Cargo.toml` & `CHANGELOG.md`
-- [ ] Push git tag `vX.Y.Z` -> **Triggers GitHub Release**
-- [ ] `cargo publish` -> **Crates.io**
-- [ ] Update `npm/package.json` & `npm/install.js` -> `npm publish` -> **NPM**
-- [ ] Update `Formula/cs.rb` with new SHA -> Push to main -> **Homebrew**
