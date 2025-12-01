@@ -126,6 +126,7 @@ Results are saved to `target/criterion/` with detailed HTML reports.
 
 ### Initial Release
 - i18n translation search with YAML support
+## [0.1.4] - 2025-11-30
 ## [0.1.2] - 2025-11-30
 - Code reference tracking across multiple frameworks
 - Call graph tracing (forward and backward)
