@@ -54,10 +54,10 @@ fn test_whitespace_only_search_rejected() {
 }
 
 #[test]
-fn test_malformed_yaml_shows_clear_error() {
+fn test_malformed_yaml_shows_warning() {
     // Given a malformed YAML file
     // When the tool tries to parse it
-    // Then I see a clear error with the file name and issue
+    // Then I see a warning but the tool continues
 
     let temp_dir = TempDir::new().unwrap();
     let yaml_path = temp_dir.path().join("config/locales");
@@ -70,17 +70,18 @@ fn test_malformed_yaml_shows_clear_error() {
     cmd.arg("test")
         .current_dir(temp_dir.path())
         .assert()
-        .failure()
-        .stderr(predicate::str::contains("Error:"))
-        .stderr(predicate::str::contains("Failed to parse YAML file"))
+        .success() // Should NOT fail
+        .stderr(predicate::str::contains(
+            "Warning: Failed to parse YAML file",
+        ))
         .stderr(predicate::str::contains("bad.yml"));
 }
 
 #[test]
-fn test_malformed_yaml_suggests_next_steps() {
+fn test_malformed_yaml_does_not_crash() {
     // Given a malformed YAML file
-    // When the error is shown
-    // Then I see suggested next steps
+    // When I run the tool
+    // Then it completes successfully
 
     let temp_dir = TempDir::new().unwrap();
     let yaml_path = temp_dir.path().join("locales");
@@ -92,35 +93,10 @@ fn test_malformed_yaml_suggests_next_steps() {
     cmd.arg("test")
         .current_dir(temp_dir.path())
         .assert()
-        .failure()
-        .stderr(predicate::str::contains("Next steps:"))
-        .stderr(predicate::str::contains("YAML syntax"));
-}
-
-#[test]
-fn test_malformed_yaml_mentions_common_issues() {
-    // Given a malformed YAML file
-    // When the error is shown
-    // Then common YAML issues are mentioned
-
-    let temp_dir = TempDir::new().unwrap();
-    fs::create_dir_all(temp_dir.path().join("locales")).unwrap();
-    fs::write(
-        temp_dir.path().join("locales/test.yml"),
-        "key: [unclosed bracket",
-    )
-    .unwrap();
-
-    let mut cmd = Command::cargo_bin("cs").unwrap();
-    cmd.arg("test")
-        .current_dir(temp_dir.path())
-        .assert()
-        .failure()
-        .stderr(
-            predicate::str::contains("indentation")
-                .or(predicate::str::contains("quotes"))
-                .or(predicate::str::contains("brackets")),
-        );
+        .success()
+        .stderr(predicate::str::contains(
+            "Warning: Failed to parse YAML file",
+        ));
 }
 
 // ============================================================================
