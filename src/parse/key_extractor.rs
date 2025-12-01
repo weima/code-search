@@ -42,17 +42,37 @@ impl KeyExtractor {
             if let Some(ext) = path.extension() {
                 let ext_str = ext.to_string_lossy();
                 if ext_str == "yml" || ext_str == "yaml" {
-                    let entries = YamlParser::parse_file(path)?;
-                    for e in entries {
-                        if e.value.to_lowercase().contains(&lowered) {
-                            matches.push(e);
+                    match YamlParser::parse_file(path) {
+                        Ok(entries) => {
+                            for e in entries {
+                                if e.value.to_lowercase().contains(&lowered) {
+                                    matches.push(e);
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!(
+                                "Warning: Failed to parse YAML file {}: {}",
+                                path.display(),
+                                e
+                            );
                         }
                     }
                 } else if ext_str == "json" {
-                    let entries = JsonParser::parse_file(path)?;
-                    for e in entries {
-                        if e.value.to_lowercase().contains(&lowered) {
-                            matches.push(e);
+                    match JsonParser::parse_file(path) {
+                        Ok(entries) => {
+                            for e in entries {
+                                if e.value.to_lowercase().contains(&lowered) {
+                                    matches.push(e);
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!(
+                                "Warning: Failed to parse JSON file {}: {}",
+                                path.display(),
+                                e
+                            );
                         }
                     }
                 }
@@ -208,6 +228,26 @@ mod tests {
             .collect();
         assert!(extensions.contains(&"yml".to_string()));
         assert!(extensions.contains(&"json".to_string()));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_key_extractor_malformed_file() -> Result<()> {
+        let dir = tempdir()?;
+        let good_path = dir.path().join("good.yml");
+        let bad_path = dir.path().join("bad.yml");
+
+        fs::write(&good_path, "key: \"value\"")?;
+        fs::write(&bad_path, "key: value: invalid: yaml")?; // Malformed YAML
+
+        let extractor = KeyExtractor::new();
+        // This should NOT return an error, but just skip the bad file
+        let results = extractor.extract(dir.path(), "value")?;
+
+        // Should find the good file
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].value, "value");
 
         Ok(())
     }

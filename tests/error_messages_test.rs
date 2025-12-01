@@ -18,7 +18,7 @@ fn test_no_matches_shows_simple_message() {
 }
 
 #[test]
-fn test_yaml_parse_error_message() {
+fn test_yaml_parse_error_is_warning() {
     // Create invalid YAML file
     let temp_dir = TempDir::new().unwrap();
     let yaml_path = temp_dir.path().join("invalid.yml");
@@ -28,60 +28,25 @@ fn test_yaml_parse_error_message() {
     cmd.arg("test")
         .current_dir(temp_dir.path())
         .assert()
-        .failure()
-        .stderr(predicate::str::contains("Error:"))
-        .stderr(predicate::str::contains("Failed to parse YAML file"))
-        .stderr(predicate::str::contains("Reason:"))
-        .stderr(predicate::str::contains("Next steps:"))
-        .stderr(predicate::str::contains("YAML syntax"))
-        .stderr(predicate::str::contains("indentation"));
+        .success() // Should NOT fail
+        .stderr(predicate::str::contains(
+            "Warning: Failed to parse YAML file",
+        ));
 }
 
 #[test]
-fn test_yaml_parse_error_has_helpful_suggestions() {
-    // Test that YAML parse errors include helpful next steps
+fn test_json_parse_error_is_warning() {
+    // Create invalid JSON file
     let temp_dir = TempDir::new().unwrap();
-    let yaml_path = temp_dir.path().join("bad.yml");
-    fs::write(&yaml_path, "key: [unclosed").unwrap();
+    let json_path = temp_dir.path().join("invalid.json");
+    fs::write(&json_path, "{ key: 'invalid json' }").unwrap(); // Invalid JSON (single quotes, no quotes on key)
 
     let mut cmd = Command::cargo_bin("cs").unwrap();
     cmd.arg("test")
         .current_dir(temp_dir.path())
         .assert()
-        .failure()
-        .stderr(predicate::str::contains("Next steps:"));
-}
-
-#[test]
-fn test_yaml_parse_error_includes_reason() {
-    // Test that YAML parse errors include the specific reason
-    let temp_dir = TempDir::new().unwrap();
-    let yaml_path = temp_dir.path().join("invalid.yml");
-    fs::write(&yaml_path, "key: {broken").unwrap();
-
-    let mut cmd = Command::cargo_bin("cs").unwrap();
-    cmd.arg("test")
-        .current_dir(temp_dir.path())
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains("Reason:"));
-}
-
-#[test]
-fn test_yaml_parse_error_shows_common_issues() {
-    // Test that YAML errors mention common problems
-    let temp_dir = TempDir::new().unwrap();
-    let yaml_path = temp_dir.path().join("test.yml");
-    fs::write(&yaml_path, "bad: [yaml").unwrap();
-
-    let mut cmd = Command::cargo_bin("cs").unwrap();
-    cmd.arg("test")
-        .current_dir(temp_dir.path())
-        .assert()
-        .failure()
-        .stderr(
-            predicate::str::contains("indentation")
-                .or(predicate::str::contains("quotes"))
-                .or(predicate::str::contains("brackets")),
-        );
+        .success() // Should NOT fail
+        .stderr(predicate::str::contains(
+            "Warning: Failed to parse JSON file",
+        ));
 }
