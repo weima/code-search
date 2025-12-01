@@ -7,7 +7,7 @@ class Cs < Formula
   license "Apache-2.0"
 
   def install
-    bin.install "cs"
+    bin.install "cs-darwin-amd64" => "cs"
   end
 
   test do

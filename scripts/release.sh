@@ -111,13 +111,13 @@ if [ "$COMMAND" == "publish" ]; then
         exit 1
     fi
 
-    # 3. Cargo (Optional - uncomment to enable)
+    # 3. Cargo
     echo "Publishing to Crates.io..."
-    # cargo publish
+    cargo publish
 
-    # 4. NPM (Optional - uncomment to enable)
+    # 4. NPM
     echo "Publishing to NPM..."
-    # cd npm && npm publish
+    cd npm && npm publish
 
     # 5. Homebrew Update
     echo "Updating Homebrew Formula..."
