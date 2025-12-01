@@ -214,7 +214,7 @@ Built on a foundation of proven tools:
 
 ### Homebrew (macOS/Linux)
 ```bash
-brew tap weima/code-search
+brew tap weima/code-search https://github.com/weima/code-search
 brew install cs
 ```
 
