@@ -20,7 +20,7 @@ fn test_multiple_code_references_all_shown() {
         .success()
         .stdout(predicate::str::contains("invoice_list.ts"))
         .stdout(predicate::str::contains("invoices.ts"))
-        .stdout(predicate::str::contains("I18n.t").count(5)); // Multiple usages
+        .stdout(predicate::str::contains("Code:").count(4)); // Multiple usages
 }
 
 #[test]
@@ -34,9 +34,9 @@ fn test_multiple_usages_show_line_numbers() {
         .current_dir("tests/fixtures/rails-app")
         .assert()
         .success()
-        .stdout(predicate::str::contains(":12:"))
-        .stdout(predicate::str::contains(":14:"))
-        .stdout(predicate::str::contains(":22:"));
+        .stdout(predicate::str::contains(":12)"))
+        .stdout(predicate::str::contains(":14)"))
+        .stdout(predicate::str::contains(":22)"));
 }
 
 #[test]
@@ -97,7 +97,8 @@ fn test_related_usages_grouped() {
         .current_dir("tests/fixtures/rails-app")
         .assert()
         .success()
-        .stdout(predicate::str::contains("=== Code References ==="));
+        .stdout(predicate::str::contains("Code:"))
+        .stdout(predicate::str::contains("├─>").or(predicate::str::contains("└─>")));
 }
 
 #[test]
