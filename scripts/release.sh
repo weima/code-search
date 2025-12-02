@@ -85,7 +85,7 @@ if [ "$COMMAND" == "publish" ]; then
 
     # 2. Wait for GitHub Release Asset (Homebrew needs this)
     URL="https://github.com/weima/code-search/releases/download/${VERSION}/cs-darwin-amd64"
-    TEMP_FILE="cs-darwin-amd64-temp"
+    TEMP_FILE=$(mktemp)
     
     echo "Waiting for GitHub Release asset to be available..."
     echo "Target: $URL"
@@ -105,7 +105,7 @@ if [ "$COMMAND" == "publish" ]; then
         COUNT=$((COUNT+1))
     done
 
-    if [ ! -f "$TEMP_FILE" ] || [ "$HTTP_CODE" != "200" ]; then
+    if [ ! -s "$TEMP_FILE" ] || [ "$HTTP_CODE" != "200" ]; then
         echo "Error: Timed out waiting for release asset."
         rm -f "$TEMP_FILE"
         exit 1
