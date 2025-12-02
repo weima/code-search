@@ -11,7 +11,9 @@ use super::yaml_parser::YamlParser;
 /// `KeyExtractor` provides functionality to search translation entries across
 /// multiple YAML translation files, returning the full dot‑notation key path,
 /// associated file path and line number for each match.
-pub struct KeyExtractor;
+pub struct KeyExtractor {
+    exclusions: Vec<String>,
+}
 
 impl Default for KeyExtractor {
     fn default() -> Self {
@@ -22,7 +24,14 @@ impl Default for KeyExtractor {
 impl KeyExtractor {
     /// Create a new `KeyExtractor`.
     pub fn new() -> Self {
-        Self
+        Self {
+            exclusions: Vec::new(),
+        }
+    }
+
+    /// Set exclusion patterns (e.g., directories or files to ignore)
+    pub fn set_exclusions(&mut self, exclusions: Vec<String>) {
+        self.exclusions = exclusions;
     }
 
     /// Recursively walk `base_dir` for `*.yml` (or `*.yaml`) files, parse each,
@@ -33,8 +42,20 @@ impl KeyExtractor {
         let mut matches = Vec::new();
         let lowered = query.to_lowercase();
 
-        for entry in WalkDir::new(base_dir)
-            .into_iter()
+        let walker = WalkDir::new(base_dir).into_iter();
+        for entry in walker
+            .filter_entry(|e| {
+                if is_ignored(e) {
+                    return false;
+                }
+                let name = e.file_name().to_string_lossy();
+                for excl in &self.exclusions {
+                    if name == excl.as_str() {
+                        return false;
+                    }
+                }
+                true
+            })
             .filter_map(|e| e.ok())
             .filter(|e| e.file_type().is_file())
         {
@@ -68,6 +89,7 @@ impl KeyExtractor {
                             }
                         }
                         Err(e) => {
+                            // Only log if it's a JsonParseError or Io error, ignore others
                             eprintln!(
                                 "Warning: Failed to parse JSON file {}: {}",
                                 path.display(),
@@ -80,6 +102,26 @@ impl KeyExtractor {
         }
         Ok(matches)
     }
+}
+
+fn is_ignored(entry: &walkdir::DirEntry) -> bool {
+    // Always allow the root directory of the search
+    if entry.depth() == 0 {
+        return false;
+    }
+
+    entry
+        .file_name()
+        .to_str()
+        .map(|s| {
+            s.starts_with('.') // Hidden files/dirs
+                || s == "node_modules"
+                || s == "target"
+                || s == "dist"
+                || s == "build"
+                || s == "vendor"
+        })
+        .unwrap_or(false)
 }
 
 #[cfg(test)]

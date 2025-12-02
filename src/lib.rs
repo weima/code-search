@@ -27,6 +27,7 @@ pub struct TraceQuery {
     pub direction: TraceDirection,
     pub max_depth: usize,
     pub base_dir: Option<PathBuf>,
+    pub exclude_patterns: Vec<String>,
 }
 
 impl TraceQuery {
@@ -36,11 +37,17 @@ impl TraceQuery {
             direction,
             max_depth,
             base_dir: None,
+            exclude_patterns: Vec::new(),
         }
     }
 
     pub fn with_base_dir(mut self, base_dir: PathBuf) -> Self {
         self.base_dir = Some(base_dir);
+        self
+    }
+
+    pub fn with_exclusions(mut self, exclusions: Vec<String>) -> Self {
+        self.exclude_patterns = exclusions;
         self
     }
 }
@@ -51,6 +58,7 @@ pub struct SearchQuery {
     pub text: String,
     pub case_sensitive: bool,
     pub base_dir: Option<PathBuf>,
+    pub exclude_patterns: Vec<String>,
 }
 
 impl SearchQuery {
@@ -59,6 +67,7 @@ impl SearchQuery {
             text,
             case_sensitive: false,
             base_dir: None,
+            exclude_patterns: Vec::new(),
         }
     }
 
@@ -69,6 +78,11 @@ impl SearchQuery {
 
     pub fn with_base_dir(mut self, base_dir: PathBuf) -> Self {
         self.base_dir = Some(base_dir);
+        self
+    }
+
+    pub fn with_exclusions(mut self, exclusions: Vec<String>) -> Self {
+        self.exclude_patterns = exclusions;
         self
     }
 }
@@ -95,8 +109,17 @@ pub fn run_search(query: SearchQuery) -> Result<SearchResult> {
         .clone()
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
 
+    // Compute exclusions: Default (based on project type) + Manual (from query)
+    let project_type = config::detect_project_type(&base_dir);
+    let mut exclusions: Vec<String> = config::get_default_exclusions(project_type)
+        .iter()
+        .map(|&s| s.to_string())
+        .collect();
+    exclusions.extend(query.exclude_patterns.clone());
+
     // Step 1: Extract translation entries matching the search text
-    let extractor = KeyExtractor::new();
+    let mut extractor = KeyExtractor::new();
+    extractor.set_exclusions(exclusions.clone());
     let translation_entries = extractor.extract(&base_dir, &query.text)?;
 
     if translation_entries.is_empty() {
@@ -109,7 +132,8 @@ pub fn run_search(query: SearchQuery) -> Result<SearchResult> {
 
     // Step 2: Find code references for each translation entry
     // Search for full key AND partial keys (for namespace caching patterns)
-    let matcher = PatternMatcher::new(base_dir);
+    let mut matcher = PatternMatcher::new(base_dir);
+    matcher.set_exclusions(exclusions);
     let mut all_code_refs = Vec::new();
 
     for entry in &translation_entries {

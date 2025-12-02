@@ -11,11 +11,11 @@ pub struct JsonParser;
 impl JsonParser {
     pub fn parse_file(path: &Path) -> Result<Vec<TranslationEntry>> {
         let content = fs::read_to_string(path).map_err(|e| {
-            SearchError::yaml_parse_error(path, format!("Failed to read file: {}", e))
+            SearchError::json_parse_error(path, format!("Failed to read file: {}", e))
         })?;
 
         let root: Value = serde_json::from_str(&content).map_err(|e| {
-            SearchError::yaml_parse_error(path, format!("Invalid JSON syntax: {}", e))
+            SearchError::json_parse_error(path, format!("Invalid JSON syntax: {}", e))
         })?;
 
         let mut entries = Vec::new();

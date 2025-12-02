@@ -23,6 +23,10 @@ struct Cli {
     #[arg(long, value_delimiter = ',')]
     include_extensions: Vec<String>,
 
+    /// Additional patterns to exclude from search (e.g., "test,spec,mock")
+    #[arg(long, value_delimiter = ',')]
+    exclude: Vec<String>,
+
     /// Trace forward call graph (what does this function call?)
     #[arg(long, conflicts_with = "traceback", conflicts_with = "trace_all")]
     trace: bool,
@@ -79,7 +83,8 @@ fn main() {
 
         let current_dir = env::current_dir().unwrap_or_else(|_| Path::new(".").to_path_buf());
         let query = cs::TraceQuery::new(cli.search_text.clone(), direction.clone(), cli.depth)
-            .with_base_dir(current_dir);
+            .with_base_dir(current_dir)
+            .with_exclusions(cli.exclude);
 
         match cs::run_trace(query) {
             Ok(Some(tree)) => {
@@ -153,18 +158,20 @@ fn main() {
 
         let query = cs::SearchQuery::new(cli.search_text.clone())
             .with_case_sensitive(cli.case_sensitive)
-            .with_base_dir(current_dir);
+            .with_base_dir(current_dir)
+            .with_exclusions(cli.exclude);
 
         match cs::run_search(query) {
             Ok(result) => {
                 if result.translation_entries.is_empty() && result.code_references.is_empty() {
                     println!("No matches found for '{}'", cli.search_text);
                 } else {
-                    // Format the search result with clear sections
+                    // Build and format the reference tree
+                    let tree = cs::ReferenceTreeBuilder::build(&result);
                     let formatter = cs::TreeFormatter::new();
-                    let output = formatter.format_result(&result);
+                    let output = formatter.format(&tree);
 
-                    print!("{}", output);
+                    println!("{}", output);
                 }
             }
             Err(e) => {
