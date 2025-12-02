@@ -17,6 +17,12 @@ pub enum SearchError {
     )]
     YamlParseError { file: PathBuf, reason: String },
 
+    /// Failed to parse JSON file
+    #[error(
+        "Failed to parse JSON file {file}:\n{reason}\n\nTip: Verify the JSON syntax is correct"
+    )]
+    JsonParseError { file: PathBuf, reason: String },
+
     /// Translation key found but no code references detected
     #[error("Translation key '{key}' found in {file} but no code references detected.\n\nTip: Check if the key is actually used in the codebase")]
     NoCodeReferences { key: String, file: PathBuf },
@@ -65,6 +71,14 @@ impl SearchError {
     /// Create a YamlParseError from a file path and error
     pub fn yaml_parse_error(file: impl Into<PathBuf>, reason: impl Into<String>) -> Self {
         Self::YamlParseError {
+            file: file.into(),
+            reason: reason.into(),
+        }
+    }
+
+    /// Create a JsonParseError from a file path and error
+    pub fn json_parse_error(file: impl Into<PathBuf>, reason: impl Into<String>) -> Self {
+        Self::JsonParseError {
             file: file.into(),
             reason: reason.into(),
         }

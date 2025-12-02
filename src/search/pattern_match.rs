@@ -22,6 +22,7 @@ pub struct CodeReference {
 
 /// Pattern matcher for finding i18n key usage in code
 pub struct PatternMatcher {
+    exclusions: Vec<String>,
     searcher: TextSearcher,
     patterns: Vec<Regex>,
 }
@@ -30,6 +31,7 @@ impl PatternMatcher {
     /// Create a new PatternMatcher with default patterns
     pub fn new(base_dir: PathBuf) -> Self {
         Self {
+            exclusions: Vec::new(),
             searcher: TextSearcher::new(base_dir),
             patterns: default_patterns(),
         }
@@ -38,9 +40,15 @@ impl PatternMatcher {
     /// Create a PatternMatcher with custom patterns
     pub fn with_patterns(patterns: Vec<Regex>, base_dir: PathBuf) -> Self {
         Self {
+            exclusions: Vec::new(),
             searcher: TextSearcher::new(base_dir),
             patterns,
         }
+    }
+
+    /// Set exclusion patterns (file or directory names to ignore)
+    pub fn set_exclusions(&mut self, exclusions: Vec<String>) {
+        self.exclusions = exclusions;
     }
 
     /// Find all code references for a given translation key
@@ -51,6 +59,12 @@ impl PatternMatcher {
         let mut code_refs = Vec::new();
 
         for m in matches {
+            // Apply exclusions: skip if any exclusion matches the file path
+            let file_str = m.file.to_string_lossy();
+            if self.exclusions.iter().any(|ex| file_str.contains(ex)) {
+                continue;
+            }
+
             // Skip tool's own source files and documentation
             let file_str = m.file.to_string_lossy().to_lowercase();
             if file_str.starts_with("src/")
