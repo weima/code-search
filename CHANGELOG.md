@@ -126,6 +126,7 @@ Results are saved to `target/criterion/` with detailed HTML reports.
 
 ### Initial Release
 - i18n translation search with YAML support
+## [0.1.7] - 2025-12-01
 ## [0.1.6] - 2025-12-01
 ## [0.1.5] - 2025-12-01
 ## [0.1.4] - 2025-11-30
