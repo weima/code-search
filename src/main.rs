@@ -332,10 +332,26 @@ fn print_highlighted_match(m: &cs::Match, search_text: &str, case_sensitive: boo
 fn is_code_file(file_path: &std::path::Path, custom_extensions: &[String]) -> bool {
     let file_name = file_path.to_string_lossy().to_lowercase();
 
-    // Skip tool source files and test files
-    if file_name.starts_with("src/")
-        || (file_name.starts_with("tests/") && !file_name.starts_with("tests/fixtures/"))
-        || file_name.ends_with("_test.rs")
+    // Skip tool source files and test files (cross-platform path checking)
+    let path_components: Vec<_> = file_path
+        .components()
+        .map(|c| c.as_os_str().to_string_lossy().to_lowercase())
+        .collect();
+
+    // Check if path starts with "src" or "tests" (but not "tests/fixtures")
+    if !path_components.is_empty() {
+        if path_components[0] == "src" {
+            return false;
+        }
+        if path_components[0] == "tests"
+            && (path_components.len() < 2 || path_components[1] != "fixtures")
+        {
+            return false;
+        }
+    }
+
+    // Skip test files by extension
+    if file_name.ends_with("_test.rs")
         || file_name.ends_with("_test.js")
         || file_name.ends_with("_test.ts")
     {

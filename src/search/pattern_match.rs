@@ -65,10 +65,28 @@ impl PatternMatcher {
                 continue;
             }
 
-            // Skip tool's own source files and documentation
+            // Skip tool's own source files and documentation (cross-platform)
             let file_str = m.file.to_string_lossy().to_lowercase();
-            if file_str.starts_with("src/")
-                || (file_str.starts_with("tests/") && !file_str.starts_with("tests/fixtures/"))
+            let path_components: Vec<_> = m
+                .file
+                .components()
+                .map(|c| c.as_os_str().to_string_lossy().to_lowercase())
+                .collect();
+
+            // Check if path starts with "src" or "tests" (but not "tests/fixtures")
+            let mut skip_file = false;
+            if !path_components.is_empty() {
+                if path_components[0] == "src" {
+                    skip_file = true;
+                } else if path_components[0] == "tests"
+                    && (path_components.len() < 2 || path_components[1] != "fixtures")
+                {
+                    skip_file = true;
+                }
+            }
+
+            // Also skip markdown files
+            if skip_file
                 || file_str.ends_with("readme.md")
                 || file_str.ends_with("evaluation.md")
                 || file_str.ends_with(".md")

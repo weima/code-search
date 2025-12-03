@@ -183,18 +183,28 @@ impl FunctionFinder {
 
         // Filter matches that look like function definitions
         for m in matches {
-            // Filter out the tool's own source files
+            // Filter out the tool's own source files (cross-platform)
             // Convert absolute path to relative path for filtering
-            let relative_path = match m.file.strip_prefix(&self.base_dir) {
-                Ok(rel_path) => rel_path.to_string_lossy().to_lowercase(),
-                Err(_) => m.file.to_string_lossy().to_lowercase(),
+            let relative_path_buf = match m.file.strip_prefix(&self.base_dir) {
+                Ok(rel_path) => rel_path.to_path_buf(),
+                Err(_) => m.file.clone(),
             };
 
-            if relative_path.starts_with("src/")
-                || (relative_path.starts_with("tests/")
-                    && !relative_path.starts_with("tests/fixtures/"))
-            {
-                continue;
+            // Check path components (works on both Unix and Windows)
+            let path_components: Vec<_> = relative_path_buf
+                .components()
+                .map(|c| c.as_os_str().to_string_lossy().to_lowercase())
+                .collect();
+
+            if !path_components.is_empty() {
+                if path_components[0] == "src" {
+                    continue;
+                }
+                if path_components[0] == "tests"
+                    && (path_components.len() < 2 || path_components[1] != "fixtures")
+                {
+                    continue;
+                }
             }
 
             let content = &m.content;
