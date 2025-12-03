@@ -122,18 +122,10 @@ pub fn run_search(query: SearchQuery) -> Result<SearchResult> {
     extractor.set_exclusions(exclusions.clone());
     let translation_entries = extractor.extract(&base_dir, &query.text)?;
 
-    if translation_entries.is_empty() {
-        return Ok(SearchResult {
-            query: query.text,
-            translation_entries: vec![],
-            code_references: vec![],
-        });
-    }
-
     // Step 2: Find code references for each translation entry
     // Search for full key AND partial keys (for namespace caching patterns)
-    let mut matcher = PatternMatcher::new(base_dir);
-    matcher.set_exclusions(exclusions);
+    let mut matcher = PatternMatcher::new(base_dir.clone());
+    matcher.set_exclusions(exclusions.clone());
     let mut all_code_refs = Vec::new();
 
     for entry in &translation_entries {
@@ -144,6 +136,36 @@ pub fn run_search(query: SearchQuery) -> Result<SearchResult> {
         for key in &key_variations {
             let code_refs = matcher.find_usages(key)?;
             all_code_refs.extend(code_refs);
+        }
+    }
+
+    // Step 3: Perform direct text search for the query text
+    // This ensures we find hardcoded text even if no translation keys are found
+    let text_searcher = TextSearcher::new(base_dir.clone())
+        .case_sensitive(query.case_sensitive)
+        .respect_gitignore(true); // Always respect gitignore for now
+
+    if let Ok(direct_matches) = text_searcher.search(&query.text) {
+        for m in direct_matches {
+            // Filter out matches that are in translation files (already handled)
+            let path_str = m.file.to_string_lossy();
+            if path_str.ends_with(".yml") || path_str.ends_with(".yaml") {
+                continue;
+            }
+
+            // Apply exclusions
+            if exclusions.iter().any(|ex| path_str.contains(ex)) {
+                continue;
+            }
+
+            // Convert Match to CodeReference
+            all_code_refs.push(CodeReference {
+                file: m.file,
+                line: m.line,
+                pattern: "Direct Match".to_string(),
+                context: m.content,
+                key_path: query.text.clone(), // Use the search text as the "key"
+            });
         }
     }
 

@@ -96,20 +96,29 @@ fn test_tree_builder_preserves_locations() {
     let tree = ReferenceTreeBuilder::build(&result);
 
     // Check that translation nodes have locations
-    for translation in &tree.root.children {
-        assert!(
-            translation.location.is_some(),
-            "Translation node should have location"
-        );
+    // Check that translation nodes have locations
+    for child in &tree.root.children {
+        if child.node_type == cs::NodeType::Translation {
+            assert!(
+                child.location.is_some(),
+                "Translation node should have location"
+            );
 
-        // Check that code reference nodes have locations
-        for key_path in &translation.children {
-            for code_ref in &key_path.children {
-                assert!(
-                    code_ref.location.is_some(),
-                    "Code reference node should have location"
-                );
+            // Check that code reference nodes have locations
+            for key_path in &child.children {
+                for code_ref in &key_path.children {
+                    assert!(
+                        code_ref.location.is_some(),
+                        "Code reference node should have location"
+                    );
+                }
             }
+        } else if child.node_type == cs::NodeType::KeyPath {
+            // This is likely "Direct Matches" node
+            assert!(
+                child.location.is_none(),
+                "Direct Matches node should not have location"
+            );
         }
     }
 }

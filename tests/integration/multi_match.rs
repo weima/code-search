@@ -20,7 +20,7 @@ fn test_multiple_code_references_all_shown() {
         .success()
         .stdout(predicate::str::contains("invoice_list.ts"))
         .stdout(predicate::str::contains("invoices.ts"))
-        .stdout(predicate::str::contains("Code:").count(4)); // Multiple usages
+        .stdout(predicate::str::contains("Code:").count(7)); // Multiple usages (4 translation + 3 direct)
 }
 
 #[test]

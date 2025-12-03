@@ -14,6 +14,7 @@ impl ReferenceTreeBuilder {
     ///       - CodeRef: code reference using the key
     pub fn build(result: &SearchResult) -> ReferenceTree {
         let mut root = TreeNode::new(NodeType::Root, result.query.clone());
+        let mut used_code_refs = std::collections::HashSet::new();
 
         // Group code references by translation entry key
         for entry in &result.translation_entries {
@@ -24,13 +25,15 @@ impl ReferenceTreeBuilder {
             let matching_refs: Vec<_> = result
                 .code_references
                 .iter()
-                .filter(|r| r.key_path == entry.key)
+                .enumerate()
+                .filter(|(_, r)| r.key_path == entry.key)
                 .collect();
 
             // Add code reference nodes as children of the key node
-            for code_ref in matching_refs {
+            for (idx, code_ref) in matching_refs {
                 let code_node = Self::build_code_node(code_ref);
                 key_node.add_child(code_node);
+                used_code_refs.insert(idx);
             }
 
             // Only add the key node if it has code references
@@ -39,6 +42,28 @@ impl ReferenceTreeBuilder {
             }
 
             root.add_child(translation_node);
+        }
+
+        // Handle direct matches (code references not associated with any translation entry)
+        let direct_matches: Vec<_> = result
+            .code_references
+            .iter()
+            .enumerate()
+            .filter(|(idx, _)| !used_code_refs.contains(idx))
+            .map(|(_, r)| r)
+            .collect();
+
+        if !direct_matches.is_empty() {
+            // Create a virtual node for direct matches
+            let mut direct_matches_node =
+                TreeNode::new(NodeType::KeyPath, "Direct Matches".to_string());
+
+            for code_ref in direct_matches {
+                let code_node = Self::build_code_node(code_ref);
+                direct_matches_node.add_child(code_node);
+            }
+
+            root.add_child(direct_matches_node);
         }
 
         ReferenceTree::new(root)
@@ -60,7 +85,11 @@ impl ReferenceTreeBuilder {
     /// Build a code reference node
     fn build_code_node(code_ref: &CodeReference) -> TreeNode {
         let location = Location::new(code_ref.file.clone(), code_ref.line);
-        TreeNode::with_location(NodeType::CodeRef, code_ref.context.clone(), location)
+        let mut node =
+            TreeNode::with_location(NodeType::CodeRef, code_ref.context.clone(), location);
+        // Store the key path (or search pattern) in metadata for highlighting
+        node.metadata = Some(code_ref.key_path.clone());
+        node
     }
 }
 
