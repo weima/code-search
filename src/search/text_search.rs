@@ -272,16 +272,16 @@ mod tests {
             .case_sensitive(true)
             .respect_gitignore(false);
 
-        assert_eq!(searcher.case_sensitive, true);
-        assert_eq!(searcher.respect_gitignore, false);
+        assert!(searcher.case_sensitive);
+        assert!(!searcher.respect_gitignore);
     }
 
     #[test]
     fn test_default() {
         let searcher = TextSearcher::default();
 
-        assert_eq!(searcher.case_sensitive, false);
-        assert_eq!(searcher.respect_gitignore, true);
+        assert!(!searcher.case_sensitive);
+        assert!(searcher.respect_gitignore);
     }
 
     #[test]
