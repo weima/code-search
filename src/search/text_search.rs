@@ -4,7 +4,7 @@ use grep_searcher::sinks::UTF8;
 use grep_searcher::SearcherBuilder;
 use ignore::WalkBuilder;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::mpsc;
 
 /// Represents a single match from a text search
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -64,67 +64,76 @@ impl TextSearcher {
             .build(text)
             .map_err(|e| SearchError::Generic(format!("Failed to build matcher: {}", e)))?;
 
-        // Build the file walker with .gitignore support
-        let walker = WalkBuilder::new(&self.base_dir)
+        // Create a channel for collecting matches from parallel threads
+        let (tx, rx) = mpsc::channel();
+
+        // Build parallel walker with .gitignore support
+        WalkBuilder::new(&self.base_dir)
             .git_ignore(self.respect_gitignore)
             .git_global(self.respect_gitignore)
             .git_exclude(self.respect_gitignore)
             .hidden(false) // Don't skip hidden files by default
-            .build();
+            .build_parallel()
+            .run(|| {
+                // Each thread gets its own sender and matcher
+                let tx = tx.clone();
+                let matcher = matcher.clone();
 
-        // Shared vector to collect matches from all threads
-        let matches = Arc::new(Mutex::new(Vec::new()));
+                Box::new(move |entry| {
+                    use ignore::WalkState;
 
-        // Search each file
-        for entry in walker {
-            let entry = match entry {
-                Ok(e) => e,
-                Err(_) => continue, // Skip entries we can't read
-            };
+                    let entry = match entry {
+                        Ok(e) => e,
+                        Err(_) => return WalkState::Continue,
+                    };
 
-            // Skip directories
-            if entry.file_type().is_none_or(|ft| ft.is_dir()) {
-                continue;
-            }
+                    // Skip directories
+                    if entry.file_type().is_none_or(|ft| ft.is_dir()) {
+                        return WalkState::Continue;
+                    }
 
-            let path = entry.path();
+                    let path = entry.path();
+                    let path_buf = path.to_path_buf();
 
-            // Clone Arc for the closure
-            let matches_clone = Arc::clone(&matches);
-            let path_buf = path.to_path_buf();
+                    // Thread-local vector to collect matches for this file
+                    let mut file_matches = Vec::new();
 
-            // Build searcher
-            let mut searcher = SearcherBuilder::new().line_number(true).build();
+                    // Build searcher
+                    let mut searcher = SearcherBuilder::new().line_number(true).build();
 
-            // Search the file
-            let result = searcher.search_path(
-                &matcher,
-                path,
-                UTF8(|line_num, line_content| {
-                    // Collect the match
-                    let mut matches = matches_clone.lock().unwrap();
-                    matches.push(Match {
-                        file: path_buf.clone(),
-                        line: line_num as usize,
-                        content: line_content.trim_end().to_string(),
-                    });
-                    Ok(true) // Continue searching
-                }),
-            );
+                    // Search the file
+                    let result = searcher.search_path(
+                        &matcher,
+                        path,
+                        UTF8(|line_num, line_content| {
+                            file_matches.push(Match {
+                                file: path_buf.clone(),
+                                line: line_num as usize,
+                                content: line_content.trim_end().to_string(),
+                            });
+                            Ok(true) // Continue searching
+                        }),
+                    );
 
-            // Ignore search errors for individual files
-            if result.is_err() {
-                continue;
-            }
+                    // Send matches for this file (if any) through the channel
+                    if result.is_ok() && !file_matches.is_empty() {
+                        let _ = tx.send(file_matches);
+                    }
+
+                    WalkState::Continue
+                })
+            });
+
+        // Drop the original sender so rx.iter() will terminate
+        drop(tx);
+
+        // Collect all matches from all threads
+        let mut all_matches = Vec::new();
+        for file_matches in rx {
+            all_matches.extend(file_matches);
         }
 
-        // Extract matches from Arc<Mutex<Vec>>
-        let matches = match Arc::try_unwrap(matches) {
-            Ok(mutex) => mutex.into_inner().unwrap(),
-            Err(arc) => arc.lock().unwrap().clone(),
-        };
-
-        Ok(matches)
+        Ok(all_matches)
     }
 }
 

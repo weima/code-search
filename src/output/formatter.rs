@@ -2,6 +2,7 @@ use crate::trace::{CallNode, CallTree, TraceDirection};
 use crate::tree::{NodeType, ReferenceTree, TreeNode};
 use crate::SearchResult;
 use colored::*;
+use regex::RegexBuilder;
 
 /// Formatter for rendering reference trees as text
 pub struct TreeFormatter {
@@ -59,10 +60,24 @@ impl TreeFormatter {
         output
     }
 
-    /// Highlight the i18n key in the code context
+    /// Highlight the i18n key in the code context (case-insensitive)
     fn highlight_key_in_context(&self, context: &str, key: &str) -> String {
-        // Make the key bold in the context
-        context.replace(key, &key.bold().to_string())
+        // Escape special regex characters in the key
+        let escaped_key = regex::escape(key);
+
+        // Build case-insensitive regex
+        let re = match RegexBuilder::new(&escaped_key)
+            .case_insensitive(true)
+            .build()
+        {
+            Ok(r) => r,
+            Err(_) => return context.to_string(), // Fallback if regex build fails
+        };
+
+        // Replace all case-insensitive matches with bold version
+        let result = re.replace_all(context, |caps: &regex::Captures| caps[0].bold().to_string());
+
+        result.to_string()
     }
 
     /// Format a reference tree as a string (legacy tree format)
@@ -492,5 +507,68 @@ mod tests {
 
         // Check that deeper levels have more indentation
         assert!(lines[2].starts_with(' ') || lines[2].starts_with('│'));
+    }
+
+    #[test]
+    fn test_highlight_case_insensitive_lowercase() {
+        let formatter = TreeFormatter::new();
+        let context = "const value = pmfc.getData();";
+        let key = "PMFC";
+        let result = formatter.highlight_key_in_context(context, key);
+
+        // Should highlight 'pmfc' even though we searched for 'PMFC'
+        assert!(result.contains("pmfc"));
+        // The bold version will have ANSI codes, so we can't do exact string matching
+        // But we can verify it's different from the original
+        assert_ne!(result, context);
+    }
+
+    #[test]
+    fn test_highlight_case_insensitive_uppercase() {
+        let formatter = TreeFormatter::new();
+        let context = "const value = PMFC.getData();";
+        let key = "pmfc";
+        let result = formatter.highlight_key_in_context(context, key);
+
+        // Should highlight 'PMFC' even though we searched for 'pmfc'
+        assert!(result.contains("PMFC"));
+        assert_ne!(result, context);
+    }
+
+    #[test]
+    fn test_highlight_case_insensitive_mixed() {
+        let formatter = TreeFormatter::new();
+        let context = "const a = PmFc.get(); const b = pmfc.set();";
+        let key = "PMFC";
+        let result = formatter.highlight_key_in_context(context, key);
+
+        // Should highlight both 'PmFc' and 'pmfc'
+        assert!(result.contains("PmFc"));
+        assert!(result.contains("pmfc"));
+        assert_ne!(result, context);
+    }
+
+    #[test]
+    fn test_highlight_with_special_regex_chars() {
+        let formatter = TreeFormatter::new();
+        let context = "price: $19.99";
+        let key = "$19.99";
+        let result = formatter.highlight_key_in_context(context, key);
+
+        // Should escape regex special chars and still match
+        assert!(result.contains("$19.99"));
+        assert_ne!(result, context);
+    }
+
+    #[test]
+    fn test_highlight_exact_match_still_works() {
+        let formatter = TreeFormatter::new();
+        let context = "I18n.t('invoice.labels.add_new')";
+        let key = "invoice.labels.add_new";
+        let result = formatter.highlight_key_in_context(context, key);
+
+        // Should still highlight exact matches
+        assert!(result.contains("invoice.labels.add_new"));
+        assert_ne!(result, context);
     }
 }
