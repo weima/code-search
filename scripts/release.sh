@@ -126,7 +126,7 @@ if [ "$COMMAND" == "publish" ]; then
 
     # 4. NPM
     echo "Publishing to NPM..."
-    cd npm && npm publish
+    cd npm && npm publish && cd ..
 
     # 5. Homebrew Update
     echo "Updating Homebrew Formula..."
