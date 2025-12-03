@@ -33,6 +33,7 @@ pub struct TreeNode {
     pub content: String,
     pub location: Option<Location>,
     pub children: Vec<TreeNode>,
+    pub metadata: Option<String>,
 }
 
 impl TreeNode {
@@ -43,6 +44,7 @@ impl TreeNode {
             content,
             location: None,
             children: Vec::new(),
+            metadata: None,
         }
     }
 
@@ -53,6 +55,7 @@ impl TreeNode {
             content,
             location: Some(location),
             children: Vec::new(),
+            metadata: None,
         }
     }
 

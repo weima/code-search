@@ -269,17 +269,26 @@ impl TreeFormatter {
             NodeType::CodeRef => {
                 // Truncate code context
                 let truncated = self.truncate(node.content.trim(), self.max_width - 30);
-                format!("Code: {}", truncated)
+
+                // Highlight if metadata is present
+                let display_content = if let Some(key) = &node.metadata {
+                    self.highlight_key_in_context(&truncated, key)
+                } else {
+                    truncated
+                };
+
+                format!("Code: {}", display_content)
             }
         }
     }
 
-    /// Truncate a string to fit within max length
+    /// Truncate a string to fit within max length (safe for unicode)
     fn truncate(&self, s: &str, max_len: usize) -> String {
-        if s.len() <= max_len {
+        if s.chars().count() <= max_len {
             s.to_string()
         } else {
-            format!("{}...", &s[..max_len.saturating_sub(3)])
+            let truncated: String = s.chars().take(max_len.saturating_sub(3)).collect();
+            format!("{}...", truncated)
         }
     }
 }

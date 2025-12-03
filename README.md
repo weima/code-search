@@ -70,8 +70,9 @@ $ cs 'bar' --trace --depth 5
 ## Key Features
 
 - **Universal Text Search**: Find any text - UI text, function names, variable names, error messages
-- **Smart i18n Tracing**: Automatically follows references from UI text through translation files to implementation
-- **Call Graph Tracing**: Trace function calls forward (`--trace`) or backward (`--traceback`)
+- **Smart Translation Tracing**: Finds translation keys (e.g., `t('invoice.add')`) and traces them back to their definition in YAML files.
+- **Direct Text Search**: Searches for the text directly in the codebase in addition to translation keys, ensuring all occurrences are found.
+- **Call Graph Tracing**: Traces function calls forward (what does this call?) and backward (who calls this?).
 - **i18n Format Support**: Understands YAML/JSON translation file structures
 - **Pattern Recognition**: Identifies common i18n patterns (I18n.t, t(), $t, etc.) and function definitions
 - **Tree Visualization**: Clear visual representation of the reference chain

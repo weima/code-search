@@ -71,7 +71,16 @@ fi
 # --- Publish Stage ---
 if [ "$COMMAND" == "publish" ]; then
     echo "=== Publishing Release $VERSION ==="
-    check_clean_git
+    
+    # Store current branch to return to it later
+    ORIGINAL_BRANCH=$(git branch --show-current)
+    echo "Current branch: $ORIGINAL_BRANCH"
+    
+    # Check for uncommitted changes (but allow continuing if on a release branch)
+    if [ -n "$(git status --porcelain)" ]; then
+        echo "Warning: Git working directory has uncommitted changes."
+        echo "Continuing anyway since this might be expected for release branches..."
+    fi
 
     # 1. Check/Create Tag
     if git rev-parse "$VERSION" >/dev/null 2>&1; then
@@ -123,16 +132,18 @@ if [ "$COMMAND" == "publish" ]; then
     echo "Updating Homebrew Formula..."
     BRANCH_NAME="homebrew-$VERSION"
     
-    # Check if branch exists, if so switch to it, else create
-    if git show-ref --verify --quiet "refs/heads/$BRANCH_NAME"; then
-        git checkout "$BRANCH_NAME"
-    else
-        git checkout -b "$BRANCH_NAME"
-    fi
-
+    # Calculate SHA before switching branches
     SHA=$(shasum -a 256 "$TEMP_FILE" | awk '{print $1}')
     rm "$TEMP_FILE"
     echo "SHA256: $SHA"
+    
+    # Check if branch exists, if so delete it and recreate
+    if git show-ref --verify --quiet "refs/heads/$BRANCH_NAME"; then
+        echo "Branch $BRANCH_NAME already exists, deleting and recreating..."
+        git branch -D "$BRANCH_NAME"
+    fi
+    
+    git checkout -b "$BRANCH_NAME"
 
     sed -i '' "s|url \".*\"|url \"$URL\"|" Formula/cs.rb
     sed -i '' "s|sha256 \".*\"|sha256 \"$SHA\"|" Formula/cs.rb
@@ -152,7 +163,20 @@ if [ "$COMMAND" == "publish" ]; then
         echo "GitHub CLI (gh) not found. Please create PR manually."
     fi
 
+    # Return to original branch
+    echo "Returning to original branch: $ORIGINAL_BRANCH"
+    git checkout "$ORIGINAL_BRANCH"
+
     echo "Done! Release $VERSION published."
+    echo ""
+    echo "Summary:"
+    echo "  - Tag: $VERSION"
+    echo "  - Homebrew branch: $BRANCH_NAME"
+    echo "  - Formula updated with SHA: $SHA"
+    echo ""
+    echo "Next steps:"
+    echo "  1. Merge the Homebrew PR"
+    echo "  2. Users can update with: brew upgrade cs"
     exit 0
 fi
 

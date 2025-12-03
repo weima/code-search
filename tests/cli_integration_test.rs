@@ -116,8 +116,9 @@ fn test_cli_multiple_code_references() {
         .success()
         .stdout(predicate::str::contains("invoice_list.ts"))
         .stdout(predicate::str::contains("invoices.ts"))
-        // Should show multiple code references
-        .stdout(predicate::str::contains("Code:").count(4));
+        // Should show multiple code references (translation matches + direct matches)
+        // 4 translation matches + 3 direct matches = 7
+        .stdout(predicate::str::contains("Code:").count(7));
 }
 
 #[test]
