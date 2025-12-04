@@ -122,11 +122,20 @@ if [ "$COMMAND" == "publish" ]; then
 
     # 3. Cargo
     echo "Publishing to Crates.io..."
-    cargo publish
+    if cargo publish; then
+        echo "✓ Published to Crates.io"
+    else
+        echo "⚠ Cargo publish failed (might already be published)"
+    fi
 
     # 4. NPM
     echo "Publishing to NPM..."
-    cd npm && npm publish && cd ..
+    if cd npm && npm publish && cd ..; then
+        echo "✓ Published to NPM"
+    else
+        echo "⚠ NPM publish failed (might already be published)"
+        cd .. 2>/dev/null || true
+    fi
 
     # 5. Homebrew Update
     echo "Updating Homebrew Formula..."
