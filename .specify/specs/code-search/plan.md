@@ -47,7 +47,7 @@ Implement a lightweight CLI tool in **Rust** that automates tracing UI text thro
 
 **Deployment**: Distributed as standalone executable via:
 - GitHub Releases (pre-compiled binaries)
-- Cargo (source distribution: `cargo install code-search`)
+- Cargo (source distribution: `cargo install code-search-cli`)
 - Homebrew formula (macOS: `brew install code-search`)
 - Debian package (Linux: `apt install code-search`)
 
@@ -813,7 +813,7 @@ criterion_main!(benches);
 6. **Announce**: Post release notes in README
 
 ### Distribution Channels
-- **Cargo**: `cargo install code-search`
+- **Cargo**: `cargo install code-search-cli`
 - **GitHub Releases**: Download pre-compiled binaries
 - **Homebrew** (Phase 2): `brew install code-search`
 - **Debian Package** (Phase 3): `apt install code-search`

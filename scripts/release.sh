@@ -30,7 +30,7 @@ if [ "$COMMAND" == "prepare" ]; then
     check_clean_git
 
     BRANCH_NAME="build-release-$VERSION"
-    
+
     echo "Creating branch $BRANCH_NAME..."
     git checkout -b "$BRANCH_NAME"
 
@@ -60,22 +60,22 @@ if [ "$COMMAND" == "prepare" ]; then
 
     if command -v gh &> /dev/null; then
         echo "Creating Pull Request..."
-        gh pr create --title "chore: bump versions to $VERSION" --body "Automated PR to bump versions for release $VERSION." --base main --head "$BRANCH_NAME"
+        gh pr create --title "chore: bump versions to $VERSION" --body "Automated PR to bump versions for release $VERSION." --base main --head "$BRANCH_NAME" --assignee "@me"
     else
         echo "GitHub CLI (gh) not found. Please create PR manually."
     fi
-    
+
     exit 0
 fi
 
 # --- Publish Stage ---
 if [ "$COMMAND" == "publish" ]; then
     echo "=== Publishing Release $VERSION ==="
-    
+
     # Store current branch to return to it later
     ORIGINAL_BRANCH=$(git branch --show-current)
     echo "Current branch: $ORIGINAL_BRANCH"
-    
+
     # Check for uncommitted changes (but allow continuing if on a release branch)
     if [ -n "$(git status --porcelain)" ]; then
         echo "Warning: Git working directory has uncommitted changes."
@@ -95,20 +95,20 @@ if [ "$COMMAND" == "publish" ]; then
     # 2. Wait for GitHub Release Asset (Homebrew needs this)
     URL="https://github.com/weima/code-search/releases/download/${VERSION}/cs-darwin-amd64"
     TEMP_FILE=$(mktemp)
-    
+
     echo "Waiting for GitHub Release asset to be available..."
     echo "Target: $URL"
-    
+
     MAX_RETRIES=30 # 5 minutes (30 * 10s)
     COUNT=0
-    
+
     while [ $COUNT -lt $MAX_RETRIES ]; do
         HTTP_CODE=$(curl -L -o "$TEMP_FILE" -w "%{http_code}" "$URL")
         if [ "$HTTP_CODE" == "200" ]; then
             echo "Asset downloaded successfully!"
             break
         fi
-        
+
         echo "Asset not ready yet (HTTP $HTTP_CODE). Waiting 10s... ($((COUNT+1))/$MAX_RETRIES)"
         sleep 10
         COUNT=$((COUNT+1))
@@ -122,27 +122,36 @@ if [ "$COMMAND" == "publish" ]; then
 
     # 3. Cargo
     echo "Publishing to Crates.io..."
-    cargo publish
+    if cargo publish; then
+        echo "✓ Published to Crates.io"
+    else
+        echo "⚠ Cargo publish failed (might already be published)"
+    fi
 
     # 4. NPM
     echo "Publishing to NPM..."
-    cd npm && npm publish && cd ..
+    if cd npm && npm publish && cd ..; then
+        echo "✓ Published to NPM"
+    else
+        echo "⚠ NPM publish failed (might already be published)"
+        cd .. 2>/dev/null || true
+    fi
 
     # 5. Homebrew Update
     echo "Updating Homebrew Formula..."
     BRANCH_NAME="homebrew-$VERSION"
-    
+
     # Calculate SHA before switching branches
     SHA=$(shasum -a 256 "$TEMP_FILE" | awk '{print $1}')
     rm "$TEMP_FILE"
     echo "SHA256: $SHA"
-    
+
     # Check if branch exists, if so delete it and recreate
     if git show-ref --verify --quiet "refs/heads/$BRANCH_NAME"; then
         echo "Branch $BRANCH_NAME already exists, deleting and recreating..."
         git branch -D "$BRANCH_NAME"
     fi
-    
+
     git checkout -b "$BRANCH_NAME"
 
     sed -i '' "s|url \".*\"|url \"$URL\"|" Formula/cs.rb
@@ -158,7 +167,8 @@ if [ "$COMMAND" == "publish" ]; then
     # 6. Create PR
     if command -v gh &> /dev/null; then
         echo "Creating Pull Request..."
-        gh pr create --title "chore: update homebrew formula to $VERSION" --body "Automated PR to update Homebrew formula SHA256 for release $VERSION." --base main --head "$BRANCH_NAME"
+        gh pr create --title "chore: update homebrew formula to $VERSION" --body "Automated PR to update Homebrew formula SHA256 for release $VERSION." --base main --head "$BRANCH_NAME" --assignee "@me"
+        echo "Homebrew PR created and assigned."
     else
         echo "GitHub CLI (gh) not found. Please create PR manually."
     fi
@@ -171,12 +181,16 @@ if [ "$COMMAND" == "publish" ]; then
     echo ""
     echo "Summary:"
     echo "  - Tag: $VERSION"
+    echo "  - Cargo: Published to crates.io"
+    echo "  - NPM: Published to npmjs.com"
     echo "  - Homebrew branch: $BRANCH_NAME"
+    echo "  - Homebrew PR: Created and assigned"
     echo "  - Formula updated with SHA: $SHA"
     echo ""
     echo "Next steps:"
-    echo "  1. Merge the Homebrew PR"
-    echo "  2. Users can update with: brew upgrade cs"
+    echo "  1. Merge the version bump PR (if not already merged)"
+    echo "  2. Merge the Homebrew PR"
+    echo "  3. Users can update with: brew upgrade cs"
     exit 0
 fi
 

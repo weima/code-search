@@ -23,7 +23,6 @@ pub struct TextSearcher {
     /// Whether to respect .gitignore files
     respect_gitignore: bool,
     /// Whether search is case-sensitive
-    /// Whether search is case-sensitive
     case_sensitive: bool,
     /// Whether to match whole words only
     word_match: bool,
@@ -31,6 +30,8 @@ pub struct TextSearcher {
     is_regex: bool,
     /// Glob patterns to include
     globs: Vec<String>,
+    /// Patterns to exclude from search
+    exclusions: Vec<String>,
     /// The base directory to search in
     base_dir: PathBuf,
 }
@@ -44,6 +45,7 @@ impl TextSearcher {
             word_match: false,
             is_regex: false,
             globs: Vec::new(),
+            exclusions: Vec::new(),
             base_dir,
         }
     }
@@ -75,6 +77,12 @@ impl TextSearcher {
     /// Add glob patterns to include
     pub fn add_globs(mut self, globs: Vec<String>) -> Self {
         self.globs.extend(globs);
+        self
+    }
+
+    /// Add exclusion patterns
+    pub fn add_exclusions(mut self, exclusions: Vec<String>) -> Self {
+        self.exclusions.extend(exclusions);
         self
     }
 

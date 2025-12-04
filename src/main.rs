@@ -2,7 +2,7 @@ use clap::Parser;
 use colored::*;
 use regex::RegexBuilder;
 use std::env;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process;
 
 /// Code Search - Intelligent code search tool for tracing text to implementation
@@ -14,6 +14,10 @@ struct Cli {
     /// Text to search for (UI text, function names, variables, error messages, etc.)
     #[arg(value_name = "SEARCH_TEXT")]
     search_text: String,
+
+    /// Path to search in (defaults to current directory)
+    #[arg(value_name = "PATH")]
+    path: Option<String>,
 
     /// Case-sensitive search
     #[arg(short = 's', long, overrides_with = "ignore_case", visible_alias = "c")]
@@ -107,9 +111,13 @@ fn main() {
             cs::TraceDirection::Forward
         };
 
-        let current_dir = env::current_dir().unwrap_or_else(|_| Path::new(".").to_path_buf());
+        let base_dir = if let Some(path) = &cli.path {
+            PathBuf::from(path)
+        } else {
+            env::current_dir().unwrap_or_else(|_| Path::new(".").to_path_buf())
+        };
         let query = cs::TraceQuery::new(cli.search_text.clone(), direction.clone(), cli.depth)
-            .with_base_dir(current_dir)
+            .with_base_dir(base_dir)
             .with_exclusions(cli.exclude);
 
         match cs::run_trace(query) {

@@ -167,6 +167,7 @@ pub fn run_search(query: SearchQuery) -> Result<SearchResult> {
         .word_match(query.word_match)
         .is_regex(query.is_regex)
         .add_globs(query.include_patterns.clone())
+        .add_exclusions(exclusions.clone())
         .respect_gitignore(true); // Always respect gitignore for now
 
     if let Ok(direct_matches) = text_searcher.search(&query.text) {
