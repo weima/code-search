@@ -19,7 +19,7 @@ npm install -g code-search-cli
 
 ### Cargo (Rust)
 ```bash
-cargo install code-search
+cargo install code-search-cli
 ```
 
 ## Basic Usage

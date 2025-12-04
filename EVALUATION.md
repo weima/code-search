@@ -492,7 +492,7 @@ patterns:
 ### Option 1: Cargo + GitHub Releases ⭐ RECOMMENDED
 
 **Distribution Channels**:
-- **Cargo**: `cargo install code-search` (source distribution)
+- **Cargo**: `cargo install code-search-cli` (source distribution)
 - **GitHub Releases**: Pre-compiled binaries (Linux, macOS, Windows)
 - **Manual**: Download binary, add to PATH
 
