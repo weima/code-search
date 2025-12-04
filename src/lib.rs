@@ -13,7 +13,7 @@ pub use config::default_patterns;
 pub use error::{Result, SearchError};
 pub use output::TreeFormatter;
 pub use parse::{KeyExtractor, TranslationEntry, YamlParser};
-pub use search::{CodeReference, Match, PatternMatcher, TextSearcher};
+pub use search::{CodeReference, FileMatch, FileSearcher, Match, PatternMatcher, TextSearcher};
 pub use trace::{
     CallExtractor, CallGraphBuilder, CallNode, CallTree, FunctionDef, FunctionFinder,
     TraceDirection,

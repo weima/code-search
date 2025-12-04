@@ -47,6 +47,16 @@ struct Cli {
     #[arg(long = "regex")]
     regex: bool,
 
+    /// Search for files by name only (skip content search)
+    #[arg(
+        short = 'f',
+        long = "file-only",
+        conflicts_with = "trace",
+        conflicts_with = "traceback",
+        conflicts_with = "trace_all"
+    )]
+    file_only: bool,
+
     /// Trace forward call graph (what does this function call?)
     #[arg(long, conflicts_with = "traceback", conflicts_with = "trace_all")]
     trace: bool,
@@ -178,11 +188,15 @@ fn main() {
         }
     } else {
         // Use the new orchestrator and formatter for i18n search
-        let base_dir = if let Some(path) = &cli.path {
-            PathBuf::from(path)
-        } else {
-            env::current_dir().unwrap_or_else(|_| Path::new(".").to_path_buf())
-        };
+        let base_dir = env::current_dir().unwrap_or_else(|_| Path::new(".").to_path_buf());
+
+        // Compute exclusions: Default (based on project type) + Manual (from CLI)
+        let project_type = cs::config::detect_project_type(&base_dir);
+        let mut exclusions: Vec<String> = cs::config::get_default_exclusions(project_type)
+            .iter()
+            .map(|&s| s.to_string())
+            .collect();
+        exclusions.extend(cli.exclude.clone());
 
         // Convert include_extensions to globs
         let mut includes = cli.glob.clone();
@@ -199,133 +213,193 @@ fn main() {
             .with_case_sensitive(cli.case_sensitive) // ignore_case is handled by overrides_with
             .with_word_match(cli.word_regexp)
             .with_regex(cli.regex)
-            .with_base_dir(base_dir)
+            .with_base_dir(base_dir.clone())
             .with_exclusions(cli.exclude)
             .with_includes(includes);
 
-        match cs::run_search(query) {
-            Ok(result) => {
-                if result.translation_entries.is_empty() && result.code_references.is_empty() {
-                    println!("No matches found for '{}'", cli.search_text);
-                } else {
-                    // Build and format the reference tree
-                    let tree = cs::ReferenceTreeBuilder::build(&result);
-                    let formatter = cs::TreeFormatter::new();
-                    let output = formatter.format(&tree);
+        // Perform file search
+        let file_searcher = cs::FileSearcher::new(base_dir.clone())
+            .case_sensitive(cli.case_sensitive)
+            .add_exclusions(exclusions.clone());
+        let file_matches = file_searcher.search(&cli.search_text).unwrap_or_default();
 
-                    println!("{}", output);
+        // If --file-only, skip content search
+        if cli.file_only {
+            if file_matches.is_empty() {
+                println!("No files found matching '{}'", cli.search_text);
+            } else {
+                println!("Files matching '{}':", cli.search_text.bold());
+                for file_match in &file_matches {
+                    let path_str = file_match.path.display().to_string();
+                    let highlighted =
+                        highlight_match(&path_str, &cli.search_text, cli.case_sensitive);
+                    println!("  {}", highlighted);
                 }
             }
-            Err(e) => {
-                // Handle errors with user-friendly messages and helpful guidance
-                use colored::Colorize;
-                use cs::SearchError;
+        } else {
+            // Perform content search
+            match cs::run_search(query) {
+                Ok(result) => {
+                    let has_content_results = !result.translation_entries.is_empty()
+                        || !result.code_references.is_empty();
+                    let has_file_results = !file_matches.is_empty();
 
-                match e {
-                    SearchError::NoTranslationFiles {
-                        text,
-                        searched_paths,
-                    } => {
-                        eprintln!(
-                            "{} No translation files found containing '{}'",
-                            "Error:".red().bold(),
-                            text.bold()
-                        );
-                        eprintln!();
-                        eprintln!("{} {}", "Searched in:".yellow().bold(), searched_paths);
-                        eprintln!();
-                        eprintln!("{}", "Possible reasons:".yellow().bold());
-                        eprintln!("  • No YAML translation files exist in this directory");
-                        eprintln!(
-                            "  • The text '{}' doesn't appear in any translation files",
-                            text
-                        );
-                        eprintln!("  • Translation files are in a different location");
-                        eprintln!();
-                        eprintln!("{}", "Next steps:".green().bold());
-                        eprintln!(
-                            "  1. Check if you're in the right directory: {}",
-                            "pwd".cyan()
-                        );
-                        eprintln!(
-                            "  2. Look for translation files: {}",
-                            "find . -name '*.yml' -o -name '*.yaml'".cyan()
-                        );
-                        eprintln!(
-                            "  3. Verify the text exists: {}",
-                            format!("grep -r '{}' .", text).cyan()
-                        );
-                        process::exit(1);
-                    }
-                    SearchError::YamlParseError { file, reason } => {
-                        eprintln!(
-                            "{} Failed to parse YAML file: {}",
-                            "Error:".red().bold(),
-                            file.display().to_string().bold()
-                        );
-                        eprintln!();
-                        eprintln!("{} {}", "Reason:".yellow().bold(), reason);
-                        eprintln!();
-                        eprintln!("{}", "Next steps:".green().bold());
-                        eprintln!(
-                            "  1. Check YAML syntax: {}",
-                            format!("cat {}", file.display()).cyan()
-                        );
-                        eprintln!("  2. Validate YAML online: https://www.yamllint.com/");
-                        eprintln!("  3. Common issues:");
-                        eprintln!("     • Incorrect indentation (use spaces, not tabs)");
-                        eprintln!("     • Missing quotes around special characters");
-                        eprintln!("     • Unclosed brackets or quotes");
-                        process::exit(1);
-                    }
-                    SearchError::NoCodeReferences { key, file } => {
-                        eprintln!(
-                            "{} Translation key found but not used in code",
-                            "Warning:".yellow().bold()
-                        );
-                        eprintln!();
-                        eprintln!("{} {}", "Key:".bold(), key.cyan());
-                        eprintln!("{} {}", "File:".bold(), file.display());
-                        eprintln!();
-                        eprintln!("{}", "Possible reasons:".yellow().bold());
-                        eprintln!("  • The key exists but is not yet used in code");
-                        eprintln!(
-                            "  • The key is used dynamically (not detectable by static search)"
-                        );
-                        eprintln!("  • The code files are outside the search scope");
-                        eprintln!();
-                        eprintln!("{}", "Next steps:".green().bold());
-                        eprintln!(
-                            "  1. Search manually: {}",
-                            format!("grep -r '{}' .", key).cyan()
-                        );
-                        eprintln!("  2. Check if key is used dynamically");
-                        eprintln!("  3. This might be an unused translation (safe to remove)");
-                        process::exit(0); // Exit successfully since this is just a warning
-                    }
-                    SearchError::Io(io_err) => {
-                        eprintln!("{} {}", "IO Error:".red().bold(), io_err);
-                        eprintln!();
-                        eprintln!("{}", "Next steps:".green().bold());
-                        eprintln!("  • Check file permissions");
-                        eprintln!("  • Verify the file/directory exists");
-                        eprintln!("  • Ensure you have read access to the directory");
-                        process::exit(1);
-                    }
-                    _ => {
-                        eprintln!("{} {}", "Error:".red().bold(), e);
-                        eprintln!();
-                        eprintln!(
-                            "{}",
-                            "If this error persists, please report it at:".yellow()
-                        );
-                        eprintln!("https://github.com/weima/code-search/issues");
-                        process::exit(1);
+                    if !has_content_results && !has_file_results {
+                        println!("No matches found for '{}'", cli.search_text);
+                    } else {
+                        // Show content search results
+                        if has_content_results {
+                            let tree = cs::ReferenceTreeBuilder::build(&result);
+                            let formatter = cs::TreeFormatter::new();
+                            let output = formatter.format(&tree);
+                            println!("{}", output);
+                        }
+
+                        // Show file search results
+                        if has_file_results {
+                            if has_content_results {
+                                println!(); // Add spacing between sections
+                            }
+                            println!("Files matching '{}':", cli.search_text.bold());
+                            for file_match in &file_matches {
+                                let path_str = file_match.path.display().to_string();
+                                let highlighted = highlight_match(
+                                    &path_str,
+                                    &cli.search_text,
+                                    cli.case_sensitive,
+                                );
+                                println!("  {}", highlighted);
+                            }
+                        }
                     }
                 }
-            }
-        }
-    }
+                Err(e) => {
+                    // Handle errors with user-friendly messages and helpful guidance
+                    use colored::Colorize;
+                    use cs::SearchError;
+
+                    match e {
+                        SearchError::NoTranslationFiles {
+                            text,
+                            searched_paths,
+                        } => {
+                            eprintln!(
+                                "{} No translation files found containing '{}'",
+                                "Error:".red().bold(),
+                                text.bold()
+                            );
+                            eprintln!();
+                            eprintln!("{} {}", "Searched in:".yellow().bold(), searched_paths);
+                            eprintln!();
+                            eprintln!("{}", "Possible reasons:".yellow().bold());
+                            eprintln!("  • No YAML translation files exist in this directory");
+                            eprintln!(
+                                "  • The text '{}' doesn't appear in any translation files",
+                                text
+                            );
+                            eprintln!("  • Translation files are in a different location");
+                            eprintln!();
+                            eprintln!("{}", "Next steps:".green().bold());
+                            eprintln!(
+                                "  1. Check if you're in the right directory: {}",
+                                "pwd".cyan()
+                            );
+                            eprintln!(
+                                "  2. Look for translation files: {}",
+                                "find . -name '*.yml' -o -name '*.yaml'".cyan()
+                            );
+                            eprintln!(
+                                "  3. Verify the text exists: {}",
+                                format!("grep -r '{}' .", text).cyan()
+                            );
+                            process::exit(1);
+                        }
+                        SearchError::YamlParseError { file, reason } => {
+                            eprintln!(
+                                "{} Failed to parse YAML file: {}",
+                                "Error:".red().bold(),
+                                file.display().to_string().bold()
+                            );
+                            eprintln!();
+                            eprintln!("{} {}", "Reason:".yellow().bold(), reason);
+                            eprintln!();
+                            eprintln!("{}", "Next steps:".green().bold());
+                            eprintln!(
+                                "  1. Check YAML syntax: {}",
+                                format!("cat {}", file.display()).cyan()
+                            );
+                            eprintln!("  2. Validate YAML online: https://www.yamllint.com/");
+                            eprintln!("  3. Common issues:");
+                            eprintln!("     • Incorrect indentation (use spaces, not tabs)");
+                            eprintln!("     • Missing quotes around special characters");
+                            eprintln!("     • Unclosed brackets or quotes");
+                            process::exit(1);
+                        }
+                        SearchError::NoCodeReferences { key, file } => {
+                            eprintln!(
+                                "{} Translation key found but not used in code",
+                                "Warning:".yellow().bold()
+                            );
+                            eprintln!();
+                            eprintln!("{} {}", "Key:".bold(), key.cyan());
+                            eprintln!("{} {}", "File:".bold(), file.display());
+                            eprintln!();
+                            eprintln!("{}", "Possible reasons:".yellow().bold());
+                            eprintln!("  • The key exists but is not yet used in code");
+                            eprintln!(
+                                "  • The key is used dynamically (not detectable by static search)"
+                            );
+                            eprintln!("  • The code files are outside the search scope");
+                            eprintln!();
+                            eprintln!("{}", "Next steps:".green().bold());
+                            eprintln!(
+                                "  1. Search manually: {}",
+                                format!("grep -r '{}' .", key).cyan()
+                            );
+                            eprintln!("  2. Check if key is used dynamically");
+                            eprintln!("  3. This might be an unused translation (safe to remove)");
+                            process::exit(0); // Exit successfully since this is just a warning
+                        }
+                        SearchError::Io(io_err) => {
+                            eprintln!("{} {}", "IO Error:".red().bold(), io_err);
+                            eprintln!();
+                            eprintln!("{}", "Next steps:".green().bold());
+                            eprintln!("  • Check file permissions");
+                            eprintln!("  • Verify the file/directory exists");
+                            eprintln!("  • Ensure you have read access to the directory");
+                            process::exit(1);
+                        }
+                        _ => {
+                            eprintln!("{} {}", "Error:".red().bold(), e);
+                            eprintln!();
+                            eprintln!(
+                                "{}",
+                                "If this error persists, please report it at:".yellow()
+                            );
+                            eprintln!("https://github.com/weima/code-search/issues");
+                            process::exit(1);
+                        }
+                    }
+                } // End of Err(e) match arm
+            } // End of match cs::run_search
+        } // End of else (not file_only)
+    } // End of else (not trace_mode)
+} // End of main
+
+/// Highlight matching text in a string
+fn highlight_match(text: &str, pattern: &str, case_sensitive: bool) -> String {
+    use colored::Colorize;
+
+    let search_re = RegexBuilder::new(&regex::escape(pattern))
+        .case_insensitive(!case_sensitive)
+        .build()
+        .unwrap_or_else(|_| RegexBuilder::new("").build().unwrap());
+
+    search_re
+        .replace_all(text, |caps: &regex::Captures| {
+            caps[0].yellow().bold().to_string()
+        })
+        .to_string()
 }
 
 #[allow(dead_code)]
