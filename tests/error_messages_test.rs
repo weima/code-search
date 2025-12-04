@@ -27,6 +27,7 @@ fn test_yaml_parse_error_is_warning() {
 
     let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.arg("test")
+        .arg("--verbose") // Enable verbose mode to see detailed warnings
         .current_dir(temp_dir.path())
         .assert()
         .success() // Should NOT fail
@@ -44,6 +45,7 @@ fn test_json_parse_error_is_warning() {
 
     let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.arg("test")
+        .arg("--verbose") // Enable verbose mode to see detailed warnings
         .current_dir(temp_dir.path())
         .assert()
         .success() // Should NOT fail

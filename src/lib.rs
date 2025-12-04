@@ -62,6 +62,7 @@ pub struct SearchQuery {
     pub base_dir: Option<PathBuf>,
     pub exclude_patterns: Vec<String>,
     pub include_patterns: Vec<String>,
+    pub verbose: bool,
 }
 
 impl SearchQuery {
@@ -74,6 +75,7 @@ impl SearchQuery {
             base_dir: None,
             exclude_patterns: Vec::new(),
             include_patterns: Vec::new(),
+            verbose: false,
         }
     }
 
@@ -104,6 +106,11 @@ impl SearchQuery {
 
     pub fn with_exclusions(mut self, exclusions: Vec<String>) -> Self {
         self.exclude_patterns = exclusions;
+        self
+    }
+
+    pub fn with_verbose(mut self, verbose: bool) -> Self {
+        self.verbose = verbose;
         self
     }
 }
@@ -141,6 +148,7 @@ pub fn run_search(query: SearchQuery) -> Result<SearchResult> {
     // Step 1: Extract translation entries matching the search text
     let mut extractor = KeyExtractor::new();
     extractor.set_exclusions(exclusions.clone());
+    extractor.set_verbose(query.verbose);
     let translation_entries = extractor.extract(&base_dir, &query.text)?;
 
     // Step 2: Find code references for each translation entry
