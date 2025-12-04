@@ -72,6 +72,10 @@ struct Cli {
     /// Maximum depth for call tracing (default: 3, max: 10)
     #[arg(long, default_value = "3", value_parser = validate_depth)]
     depth: usize,
+
+    /// Show verbose output including detailed parse error messages
+    #[arg(short = 'v', long)]
+    verbose: bool,
 }
 
 /// Validate that depth is between 1 and 10
@@ -215,7 +219,8 @@ fn main() {
             .with_regex(cli.regex)
             .with_base_dir(base_dir.clone())
             .with_exclusions(cli.exclude)
-            .with_includes(includes);
+            .with_includes(includes)
+            .with_verbose(cli.verbose);
 
         // Perform file search
         let file_searcher = cs::FileSearcher::new(base_dir.clone())

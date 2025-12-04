@@ -69,6 +69,7 @@ fn test_malformed_yaml_shows_warning() {
 
     let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.arg("test")
+        .arg("--verbose") // Enable verbose mode to see detailed warnings
         .current_dir(temp_dir.path())
         .assert()
         .success() // Should NOT fail
@@ -92,6 +93,7 @@ fn test_malformed_yaml_does_not_crash() {
 
     let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.arg("test")
+        .arg("--verbose") // Enable verbose mode to see detailed warnings
         .current_dir(temp_dir.path())
         .assert()
         .success()

@@ -13,6 +13,7 @@ use super::yaml_parser::YamlParser;
 /// associated file path and line number for each match.
 pub struct KeyExtractor {
     exclusions: Vec<String>,
+    verbose: bool,
 }
 
 impl Default for KeyExtractor {
@@ -26,12 +27,18 @@ impl KeyExtractor {
     pub fn new() -> Self {
         Self {
             exclusions: Vec::new(),
+            verbose: false,
         }
     }
 
     /// Set exclusion patterns (e.g., directories or files to ignore)
     pub fn set_exclusions(&mut self, exclusions: Vec<String>) {
         self.exclusions = exclusions;
+    }
+
+    /// Set verbose mode for detailed error messages
+    pub fn set_verbose(&mut self, verbose: bool) {
+        self.verbose = verbose;
     }
 
     /// Recursively walk `base_dir` for `*.yml` (or `*.yaml`) files, parse each,
@@ -41,6 +48,7 @@ impl KeyExtractor {
     pub fn extract(&self, base_dir: &Path, query: &str) -> Result<Vec<TranslationEntry>> {
         let mut matches = Vec::new();
         let lowered = query.to_lowercase();
+        let mut skipped_files = 0;
 
         let walker = WalkDir::new(base_dir).into_iter();
         for entry in walker
@@ -65,6 +73,8 @@ impl KeyExtractor {
                 if ext_str == "yml" || ext_str == "yaml" {
                     match YamlParser::parse_file(path) {
                         Ok(entries) => {
+                            use colored::Colorize;
+                            eprint!("{}", ".".green()); // Successfully parsed
                             for e in entries {
                                 if e.value.to_lowercase().contains(&lowered) {
                                     matches.push(e);
@@ -72,16 +82,23 @@ impl KeyExtractor {
                             }
                         }
                         Err(e) => {
-                            eprintln!(
-                                "Warning: Failed to parse YAML file {}: {}",
-                                path.display(),
-                                e
-                            );
+                            use colored::Colorize;
+                            skipped_files += 1;
+                            eprint!("{}", "S".yellow()); // Skipped due to parse error
+                            if self.verbose {
+                                eprintln!(
+                                    "\nWarning: Failed to parse YAML file {}: {}",
+                                    path.display(),
+                                    e
+                                );
+                            }
                         }
                     }
                 } else if ext_str == "json" {
                     match JsonParser::parse_file(path) {
                         Ok(entries) => {
+                            use colored::Colorize;
+                            eprint!("{}", ".".green()); // Successfully parsed
                             for e in entries {
                                 if e.value.to_lowercase().contains(&lowered) {
                                     matches.push(e);
@@ -89,17 +106,32 @@ impl KeyExtractor {
                             }
                         }
                         Err(e) => {
-                            // Only log if it's a JsonParseError or Io error, ignore others
-                            eprintln!(
-                                "Warning: Failed to parse JSON file {}: {}",
-                                path.display(),
-                                e
-                            );
+                            use colored::Colorize;
+                            skipped_files += 1;
+                            eprint!("{}", "S".yellow()); // Skipped due to parse error
+                            if self.verbose {
+                                eprintln!(
+                                    "\nWarning: Failed to parse JSON file {}: {}",
+                                    path.display(),
+                                    e
+                                );
+                            }
                         }
                     }
                 }
             }
         }
+
+        // Print newline and summary if files were skipped
+        if skipped_files > 0 {
+            eprintln!(); // Newline after the S indicators
+            eprintln!(
+                "(Skipped {} invalid translation file{})",
+                skipped_files,
+                if skipped_files == 1 { "" } else { "s" }
+            );
+        }
+
         Ok(matches)
     }
 }
