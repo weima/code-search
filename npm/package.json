@@ -1,6 +1,6 @@
 {
     "name": "code-search-cli",
-    "version": "0.1.11",
+    "version": "0.1.12",
     "description": "Intelligent code search tool for tracing text to implementation code",
     "bin": {
         "cs": "bin/cs"
