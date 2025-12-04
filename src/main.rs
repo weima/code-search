@@ -16,16 +16,32 @@ struct Cli {
     search_text: String,
 
     /// Case-sensitive search
-    #[arg(short, long)]
+    #[arg(short = 's', long, overrides_with = "ignore_case", visible_alias = "c")]
     case_sensitive: bool,
 
     /// Additional file extensions to include in code reference search (e.g., "html.ui,vue.custom")
     #[arg(long, value_delimiter = ',')]
     include_extensions: Vec<String>,
 
+    /// Include files matching glob pattern (e.g. "*.rs")
+    #[arg(short = 'g', long = "glob")]
+    glob: Vec<String>,
+
     /// Additional patterns to exclude from search (e.g., "test,spec,mock")
     #[arg(long, value_delimiter = ',')]
     exclude: Vec<String>,
+
+    /// Ignore case (case-insensitive search)
+    #[arg(short = 'i', long, overrides_with = "case_sensitive")]
+    ignore_case: bool,
+
+    /// Match whole words only
+    #[arg(short = 'w', long = "word-regexp")]
+    word_regexp: bool,
+
+    /// Treat search text as a regular expression
+    #[arg(long = "regex")]
+    regex: bool,
 
     /// Trace forward call graph (what does this function call?)
     #[arg(long, conflicts_with = "traceback", conflicts_with = "trace_all")]
@@ -156,10 +172,24 @@ fn main() {
         // Use the new orchestrator and formatter for i18n search
         let current_dir = env::current_dir().unwrap_or_else(|_| Path::new(".").to_path_buf());
 
+        // Convert include_extensions to globs
+        let mut includes = cli.glob.clone();
+        for ext in cli.include_extensions {
+            let pattern = if ext.starts_with('.') {
+                format!("*{}", ext)
+            } else {
+                format!("*.{}", ext)
+            };
+            includes.push(pattern);
+        }
+
         let query = cs::SearchQuery::new(cli.search_text.clone())
-            .with_case_sensitive(cli.case_sensitive)
+            .with_case_sensitive(cli.case_sensitive) // ignore_case is handled by overrides_with
+            .with_word_match(cli.word_regexp)
+            .with_regex(cli.regex)
             .with_base_dir(current_dir)
-            .with_exclusions(cli.exclude);
+            .with_exclusions(cli.exclude)
+            .with_includes(includes);
 
         match cs::run_search(query) {
             Ok(result) => {

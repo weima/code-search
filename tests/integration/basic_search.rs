@@ -2,6 +2,7 @@
 ///
 /// These tests verify that the tool can trace UI text directly to implementation code
 /// by searching translation files and finding code references.
+#[allow(deprecated)]
 use assert_cmd::Command;
 use predicates::prelude::*;
 use std::fs;
@@ -18,7 +19,7 @@ fn test_basic_search_shows_complete_chain() {
     //   - All code files that use that key
     //   - Line numbers for each usage
 
-    let mut cmd = Command::cargo_bin("cs").unwrap();
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.arg("add new")
         .current_dir("tests/fixtures/rails-app")
         .assert()
@@ -40,7 +41,7 @@ fn test_search_with_case_insensitive_default() {
     // When I search without --case-sensitive flag
     // Then I find matches regardless of case
 
-    let mut cmd = Command::cargo_bin("cs").unwrap();
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.arg("Add New") // Mixed case
         .current_dir("tests/fixtures/rails-app")
         .assert()
@@ -55,7 +56,7 @@ fn test_search_with_case_sensitive_flag() {
     // When I search with --case-sensitive flag
     // Then I only find exact case matches
 
-    let mut cmd = Command::cargo_bin("cs").unwrap();
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.args(["add new", "--case-sensitive"])
         .current_dir("tests/fixtures/rails-app")
         .assert()
@@ -69,7 +70,7 @@ fn test_search_finds_yaml_translation_files() {
     // When I search for translation text
     // Then the tool identifies YAML files correctly
 
-    let mut cmd = Command::cargo_bin("cs").unwrap();
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.arg("add new")
         .current_dir("tests/fixtures/rails-app")
         .assert()
@@ -83,7 +84,7 @@ fn test_search_shows_full_key_path() {
     // When I search for a translation
     // Then the full dot-notation key path is shown
 
-    let mut cmd = Command::cargo_bin("cs").unwrap();
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.arg("add new")
         .current_dir("tests/fixtures/rails-app")
         .assert()
@@ -98,7 +99,7 @@ fn test_search_finds_code_references() {
     // When I search for translation text
     // Then all code references are found with line numbers
 
-    let mut cmd = Command::cargo_bin("cs").unwrap();
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.arg("add new")
         .current_dir("tests/fixtures/rails-app")
         .assert()
@@ -115,7 +116,7 @@ fn test_search_performance_reasonable() {
 
     let start = std::time::Instant::now();
 
-    let mut cmd = Command::cargo_bin("cs").unwrap();
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.arg("add new")
         .current_dir("tests/fixtures/rails-app")
         .assert()
@@ -135,7 +136,7 @@ fn test_no_matches_returns_success() {
     // When I run the search
     // Then the tool returns success (not an error) with a clear message
 
-    let mut cmd = Command::cargo_bin("cs").unwrap();
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.arg("nonexistent xyz abc 123")
         .current_dir("tests/fixtures/rails-app")
         .assert()
@@ -156,7 +157,7 @@ fn test_search_with_special_characters() {
     let yaml_file = yaml_path.join("en.yml");
     fs::write(&yaml_file, "en:\n  special: \"hello-world_test.123\"").unwrap();
 
-    let mut cmd = Command::cargo_bin("cs").unwrap();
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.arg("hello-world_test.123")
         .current_dir(temp_dir.path())
         .assert()
@@ -170,7 +171,7 @@ fn test_search_in_react_project() {
     // When I search for translation text
     // Then the tool finds react-i18next patterns
 
-    let mut cmd = Command::cargo_bin("cs").unwrap();
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.arg("home")
         .current_dir("tests/fixtures/react-app")
         .assert()
@@ -183,7 +184,7 @@ fn test_search_in_vue_project() {
     // When I search for translation text
     // Then the tool finds vue-i18n patterns
 
-    let mut cmd = Command::cargo_bin("cs").unwrap();
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.arg("welcome")
         .current_dir("tests/fixtures/vue-app")
         .assert()

@@ -1,5 +1,5 @@
 use cs::{run_search, SearchQuery};
-use std::fs::{self, File};
+use std::fs::File;
 use std::io::Write;
 use tempfile::TempDir;
 

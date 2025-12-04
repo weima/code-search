@@ -191,7 +191,7 @@ fn bench_call_tracing(c: &mut Criterion) {
 fn bench_project_sizes(c: &mut Criterion) {
     let mut group = c.benchmark_group("project_sizes");
 
-    let sizes = vec![
+    let sizes = [
         ("small", fixture_path("rails-app"), "add new"),
         ("medium", fixture_path("code-examples"), "checkout"),
         (
