@@ -17,6 +17,9 @@ Thanks for your interest in contributing! This document outlines the guidelines 
 # Install development tools
 rustup component add clippy rustfmt
 
+# Install git hooks (IMPORTANT - do this first!)
+./scripts/install-hooks.sh
+
 # Run linter
 cargo clippy
 
@@ -26,6 +29,46 @@ cargo fmt
 # Run tests with coverage (optional)
 cargo install cargo-tarpaulin
 cargo tarpaulin
+```
+
+### Git Hooks
+
+**IMPORTANT**: Always install git hooks before starting development:
+
+```bash
+./scripts/install-hooks.sh
+```
+
+The pre-commit hook automatically runs:
+1. **`cargo fmt`** - Auto-formats your code and re-stages modified files
+2. **`cargo clippy`** - Checks for common mistakes and style issues
+3. **`cargo test --lib`** - Runs library tests to catch regressions
+
+**How it works:**
+- When you commit, `cargo fmt` runs and formats all code
+- If any of your staged files were modified by `cargo fmt`, they're automatically re-staged
+- This means formatting changes are included in your commit automatically
+- If clippy or tests fail, the commit is blocked
+
+Example output:
+```
+🔍 Running pre-commit checks...
+
+📝 Running cargo fmt...
+ℹ️  cargo fmt modified some files. Re-staging them...
+   ✓ Staged: src/main.rs
+   ✓ Staged: src/lib.rs
+
+🔧 Running cargo clippy...
+🧪 Running cargo test...
+
+✅ All pre-commit checks passed!
+```
+
+This ensures code quality and prevents CI failures. If you need to skip hooks temporarily (not recommended):
+
+```bash
+git commit --no-verify
 ```
 
 ## Code Style

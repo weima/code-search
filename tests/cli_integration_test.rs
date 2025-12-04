@@ -1,9 +1,10 @@
+#[allow(deprecated)]
 use assert_cmd::Command;
 use predicates::prelude::*;
 
 #[test]
 fn test_cli_displays_formatted_tree() {
-    let mut cmd = Command::cargo_bin("cs").unwrap();
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.arg("add new")
         .current_dir("tests/fixtures/rails-app")
         .assert()
@@ -19,7 +20,7 @@ fn test_cli_displays_formatted_tree() {
 
 #[test]
 fn test_cli_no_matches() {
-    let mut cmd = Command::cargo_bin("cs").unwrap();
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.arg("nonexistent xyz abc")
         .current_dir("tests/fixtures/rails-app")
         .assert()
@@ -29,7 +30,7 @@ fn test_cli_no_matches() {
 
 #[test]
 fn test_cli_case_sensitive() {
-    let mut cmd = Command::cargo_bin("cs").unwrap();
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.args(["add new", "--case-sensitive"])
         .current_dir("tests/fixtures/rails-app")
         .assert()
@@ -38,7 +39,7 @@ fn test_cli_case_sensitive() {
 
 #[test]
 fn test_cli_shows_tree_structure() {
-    let mut cmd = Command::cargo_bin("cs").unwrap();
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.arg("add new")
         .current_dir("tests/fixtures/rails-app")
         .assert()
@@ -48,7 +49,7 @@ fn test_cli_shows_tree_structure() {
 
 #[test]
 fn test_cli_shows_locations() {
-    let mut cmd = Command::cargo_bin("cs").unwrap();
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.arg("add new")
         .current_dir("tests/fixtures/rails-app")
         .assert()
@@ -59,7 +60,7 @@ fn test_cli_shows_locations() {
 
 #[test]
 fn test_cli_multiple_matches() {
-    let mut cmd = Command::cargo_bin("cs").unwrap();
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.arg("invoice")
         .current_dir("tests/fixtures/rails-app")
         .assert()
@@ -69,7 +70,7 @@ fn test_cli_multiple_matches() {
 
 #[test]
 fn test_cli_empty_search_text() {
-    let mut cmd = Command::cargo_bin("cs").unwrap();
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.arg("")
         .assert()
         .failure()
@@ -78,7 +79,7 @@ fn test_cli_empty_search_text() {
 
 #[test]
 fn test_cli_help() {
-    let mut cmd = Command::cargo_bin("cs").unwrap();
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.arg("--help")
         .assert()
         .success()
@@ -88,7 +89,7 @@ fn test_cli_help() {
 
 #[test]
 fn test_cli_version() {
-    let mut cmd = Command::cargo_bin("cs").unwrap();
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.arg("--version")
         .assert()
         .success()
@@ -97,7 +98,7 @@ fn test_cli_version() {
 
 #[test]
 fn test_cli_multiple_translation_files() {
-    let mut cmd = Command::cargo_bin("cs").unwrap();
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.arg("ajouter nouveau")
         .current_dir("tests/fixtures/rails-app")
         .assert()
@@ -109,7 +110,7 @@ fn test_cli_multiple_translation_files() {
 
 #[test]
 fn test_cli_multiple_code_references() {
-    let mut cmd = Command::cargo_bin("cs").unwrap();
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.arg("add new")
         .current_dir("tests/fixtures/rails-app")
         .assert()
@@ -123,7 +124,7 @@ fn test_cli_multiple_code_references() {
 
 #[test]
 fn test_cli_exclude_flag() {
-    let mut cmd = Command::cargo_bin("cs").unwrap();
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.args(["add new", "--exclude", "invoice_list"])
         .current_dir("tests/fixtures/rails-app")
         .assert()
@@ -134,7 +135,7 @@ fn test_cli_exclude_flag() {
 
 #[test]
 fn test_cli_multiple_exclusions() {
-    let mut cmd = Command::cargo_bin("cs").unwrap();
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.args(["add new", "--exclude", "invoice_list,invoices"])
         .current_dir("tests/fixtures/rails-app")
         .assert()

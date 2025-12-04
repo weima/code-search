@@ -2,6 +2,7 @@ use crate::error::{Result, SearchError};
 use grep_regex::RegexMatcherBuilder;
 use grep_searcher::sinks::UTF8;
 use grep_searcher::SearcherBuilder;
+use ignore::overrides::OverrideBuilder;
 use ignore::WalkBuilder;
 use std::path::PathBuf;
 use std::sync::mpsc;
@@ -22,7 +23,14 @@ pub struct TextSearcher {
     /// Whether to respect .gitignore files
     respect_gitignore: bool,
     /// Whether search is case-sensitive
+    /// Whether search is case-sensitive
     case_sensitive: bool,
+    /// Whether to match whole words only
+    word_match: bool,
+    /// Whether to treat the query as a regex
+    is_regex: bool,
+    /// Glob patterns to include
+    globs: Vec<String>,
     /// The base directory to search in
     base_dir: PathBuf,
 }
@@ -33,6 +41,9 @@ impl TextSearcher {
         Self {
             respect_gitignore: true,
             case_sensitive: false,
+            word_match: false,
+            is_regex: false,
+            globs: Vec::new(),
             base_dir,
         }
     }
@@ -49,6 +60,24 @@ impl TextSearcher {
         self
     }
 
+    /// Set whether to match whole words only (default: false)
+    pub fn word_match(mut self, value: bool) -> Self {
+        self.word_match = value;
+        self
+    }
+
+    /// Set whether to treat the query as a regex (default: false)
+    pub fn is_regex(mut self, value: bool) -> Self {
+        self.is_regex = value;
+        self
+    }
+
+    /// Add glob patterns to include
+    pub fn add_globs(mut self, globs: Vec<String>) -> Self {
+        self.globs.extend(globs);
+        self
+    }
+
     /// Search for text and return all matches
     ///
     /// # Arguments
@@ -58,9 +87,11 @@ impl TextSearcher {
     /// A vector of Match structs containing file path, line number, and content
     pub fn search(&self, text: &str) -> Result<Vec<Match>> {
         // Build the regex matcher with fixed string (literal) matching
+
         let matcher = RegexMatcherBuilder::new()
             .case_insensitive(!self.case_sensitive)
-            .fixed_strings(true) // Literal string matching, not regex
+            .word(self.word_match)
+            .fixed_strings(!self.is_regex) // Use fixed strings unless regex is enabled
             .build(text)
             .map_err(|e| SearchError::Generic(format!("Failed to build matcher: {}", e)))?;
 
@@ -68,61 +99,78 @@ impl TextSearcher {
         let (tx, rx) = mpsc::channel();
 
         // Build parallel walker with .gitignore support
-        WalkBuilder::new(&self.base_dir)
+        // Build overrides if any globs are provided
+        let mut builder = WalkBuilder::new(&self.base_dir);
+        let mut walk_builder = builder
             .git_ignore(self.respect_gitignore)
             .git_global(self.respect_gitignore)
             .git_exclude(self.respect_gitignore)
-            .hidden(false) // Don't skip hidden files by default
-            .build_parallel()
-            .run(|| {
-                // Each thread gets its own sender and matcher
-                let tx = tx.clone();
-                let matcher = matcher.clone();
+            .hidden(false); // Don't skip hidden files by default
 
-                Box::new(move |entry| {
-                    use ignore::WalkState;
+        if !self.globs.is_empty() {
+            let mut override_builder = OverrideBuilder::new(&self.base_dir);
+            for glob in &self.globs {
+                if let Err(e) = override_builder.add(glob) {
+                    return Err(SearchError::Generic(format!(
+                        "Invalid glob pattern '{}': {}",
+                        glob, e
+                    )));
+                }
+            }
+            if let Ok(overrides) = override_builder.build() {
+                walk_builder = walk_builder.overrides(overrides);
+            }
+        }
 
-                    let entry = match entry {
-                        Ok(e) => e,
-                        Err(_) => return WalkState::Continue,
-                    };
+        walk_builder.build_parallel().run(|| {
+            // Each thread gets its own sender and matcher
+            let tx = tx.clone();
+            let matcher = matcher.clone();
 
-                    // Skip directories
-                    if entry.file_type().is_none_or(|ft| ft.is_dir()) {
-                        return WalkState::Continue;
-                    }
+            Box::new(move |entry| {
+                use ignore::WalkState;
 
-                    let path = entry.path();
-                    let path_buf = path.to_path_buf();
+                let entry = match entry {
+                    Ok(e) => e,
+                    Err(_) => return WalkState::Continue,
+                };
 
-                    // Thread-local vector to collect matches for this file
-                    let mut file_matches = Vec::new();
+                // Skip directories
+                if entry.file_type().is_none_or(|ft| ft.is_dir()) {
+                    return WalkState::Continue;
+                }
 
-                    // Build searcher
-                    let mut searcher = SearcherBuilder::new().line_number(true).build();
+                let path = entry.path();
+                let path_buf = path.to_path_buf();
 
-                    // Search the file
-                    let result = searcher.search_path(
-                        &matcher,
-                        path,
-                        UTF8(|line_num, line_content| {
-                            file_matches.push(Match {
-                                file: path_buf.clone(),
-                                line: line_num as usize,
-                                content: line_content.trim_end().to_string(),
-                            });
-                            Ok(true) // Continue searching
-                        }),
-                    );
+                // Thread-local vector to collect matches for this file
+                let mut file_matches = Vec::new();
 
-                    // Send matches for this file (if any) through the channel
-                    if result.is_ok() && !file_matches.is_empty() {
-                        let _ = tx.send(file_matches);
-                    }
+                // Build searcher
+                let mut searcher = SearcherBuilder::new().line_number(true).build();
 
-                    WalkState::Continue
-                })
-            });
+                // Search the file
+                let result = searcher.search_path(
+                    &matcher,
+                    path,
+                    UTF8(|line_num, line_content| {
+                        file_matches.push(Match {
+                            file: path_buf.clone(),
+                            line: line_num as usize,
+                            content: line_content.trim_end().to_string(),
+                        });
+                        Ok(true) // Continue searching
+                    }),
+                );
+
+                // Send matches for this file (if any) through the channel
+                if result.is_ok() && !file_matches.is_empty() {
+                    let _ = tx.send(file_matches);
+                }
+
+                WalkState::Continue
+            })
+        });
 
         // Drop the original sender so rx.iter() will terminate
         drop(tx);
@@ -272,16 +320,16 @@ mod tests {
             .case_sensitive(true)
             .respect_gitignore(false);
 
-        assert_eq!(searcher.case_sensitive, true);
-        assert_eq!(searcher.respect_gitignore, false);
+        assert!(searcher.case_sensitive);
+        assert!(!searcher.respect_gitignore);
     }
 
     #[test]
     fn test_default() {
         let searcher = TextSearcher::default();
 
-        assert_eq!(searcher.case_sensitive, false);
-        assert_eq!(searcher.respect_gitignore, true);
+        assert!(!searcher.case_sensitive);
+        assert!(searcher.respect_gitignore);
     }
 
     #[test]

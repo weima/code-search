@@ -2,6 +2,7 @@
 ///
 /// These tests verify that the tool provides clear error messages and helpful
 /// guidance when searches fail or encounter problems.
+#[allow(deprecated)]
 use assert_cmd::Command;
 use predicates::prelude::*;
 use std::fs;
@@ -19,7 +20,7 @@ fn test_no_translation_files_found() {
 
     let temp_dir = TempDir::new().unwrap();
 
-    let mut cmd = Command::cargo_bin("cs").unwrap();
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.arg("search text")
         .current_dir(temp_dir.path())
         .assert()
@@ -33,7 +34,7 @@ fn test_empty_search_text_rejected() {
     // When I run the tool
     // Then I see an error message about empty input
 
-    let mut cmd = Command::cargo_bin("cs").unwrap();
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.arg("")
         .assert()
         .failure()
@@ -46,7 +47,7 @@ fn test_whitespace_only_search_rejected() {
     // When I run the tool
     // Then I see an error message
 
-    let mut cmd = Command::cargo_bin("cs").unwrap();
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.arg("   ")
         .assert()
         .failure()
@@ -66,7 +67,7 @@ fn test_malformed_yaml_shows_warning() {
     let yaml_file = yaml_path.join("bad.yml");
     fs::write(&yaml_file, "key: [unclosed bracket").unwrap();
 
-    let mut cmd = Command::cargo_bin("cs").unwrap();
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.arg("test")
         .current_dir(temp_dir.path())
         .assert()
@@ -89,7 +90,7 @@ fn test_malformed_yaml_does_not_crash() {
 
     fs::write(yaml_path.join("invalid.yml"), "bad: {yaml").unwrap();
 
-    let mut cmd = Command::cargo_bin("cs").unwrap();
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.arg("test")
         .current_dir(temp_dir.path())
         .assert()
@@ -115,7 +116,7 @@ fn test_empty_yaml_file_handled_gracefully() {
 
     fs::write(yaml_path.join("empty.yml"), "").unwrap();
 
-    let mut cmd = Command::cargo_bin("cs").unwrap();
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.arg("test")
         .current_dir(temp_dir.path())
         .assert()
@@ -138,7 +139,7 @@ fn test_yaml_with_only_comments() {
     )
     .unwrap();
 
-    let mut cmd = Command::cargo_bin("cs").unwrap();
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.arg("test")
         .current_dir(temp_dir.path())
         .assert()
@@ -160,7 +161,7 @@ fn test_yaml_with_null_values() {
     )
     .unwrap();
 
-    let mut cmd = Command::cargo_bin("cs").unwrap();
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.arg("value")
         .current_dir(temp_dir.path())
         .assert()
@@ -180,7 +181,7 @@ fn test_very_long_translation_keys() {
     let long_key = "a:\n  b:\n    c:\n      d:\n        e:\n          f:\n            g:\n              h: \"deep value\"";
     fs::write(temp_dir.path().join("locales/deep.yml"), long_key).unwrap();
 
-    let mut cmd = Command::cargo_bin("cs").unwrap();
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.arg("deep value")
         .current_dir(temp_dir.path())
         .assert()
@@ -203,7 +204,7 @@ fn test_special_yaml_characters_in_values() {
     )
     .unwrap();
 
-    let mut cmd = Command::cargo_bin("cs").unwrap();
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.arg("value: with: colons")
         .current_dir(temp_dir.path())
         .assert()
@@ -226,7 +227,7 @@ fn test_unicode_in_translations() {
     )
     .unwrap();
 
-    let mut cmd = Command::cargo_bin("cs").unwrap();
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.arg("Hello 世界")
         .current_dir(temp_dir.path())
         .assert()
@@ -249,7 +250,7 @@ fn test_yaml_with_array_values() {
     )
     .unwrap();
 
-    let mut cmd = Command::cargo_bin("cs").unwrap();
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.arg("second")
         .current_dir(temp_dir.path())
         .assert()
@@ -281,7 +282,7 @@ fn test_very_large_yaml_file() {
 
     fs::write(temp_dir.path().join("locales/large.yml"), content).unwrap();
 
-    let mut cmd = Command::cargo_bin("cs").unwrap();
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.arg("find me")
         .current_dir(temp_dir.path())
         .assert()
@@ -310,14 +311,14 @@ fn test_mixed_yaml_and_json_files() {
     )
     .unwrap();
 
-    let mut cmd = Command::cargo_bin("cs").unwrap();
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.arg("yaml value")
         .current_dir(temp_dir.path())
         .assert()
         .success()
         .stdout(predicate::str::contains("yaml_key"));
 
-    let mut cmd2 = Command::cargo_bin("cs").unwrap();
+    let mut cmd2 = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd2.arg("json value")
         .current_dir(temp_dir.path())
         .assert()
@@ -341,7 +342,7 @@ fn test_nested_directory_structure() {
     )
     .unwrap();
 
-    let mut cmd = Command::cargo_bin("cs").unwrap();
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.arg("User")
         .current_dir(temp_dir.path())
         .assert()
@@ -366,7 +367,7 @@ fn test_symlinks_handled_correctly() {
         let link_path = temp_dir.path().join("locales");
         unix_fs::symlink(&real_dir, &link_path).unwrap();
 
-        let mut cmd = Command::cargo_bin("cs").unwrap();
+        let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
         cmd.arg("value")
             .current_dir(temp_dir.path())
             .assert()

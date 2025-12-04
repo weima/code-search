@@ -13,7 +13,7 @@ fn test_search_finds_text_in_fixtures() {
 
     // Should find "add new" in multiple files
     assert!(
-        fixture_matches.len() > 0,
+        !fixture_matches.is_empty(),
         "Should find at least one match for 'add new' in fixtures"
     );
 
@@ -46,7 +46,7 @@ fn test_search_case_insensitive() {
 
     // Case-insensitive should find matches
     assert!(
-        fixture_matches.len() > 0,
+        !fixture_matches.is_empty(),
         "Case-insensitive search should find matches"
     );
 }
@@ -74,7 +74,7 @@ fn test_search_case_sensitive() {
         "Should not find 'ADD NEW' with case-sensitive search"
     );
     assert!(
-        lowercase_fixtures.len() > 0,
+        !lowercase_fixtures.is_empty(),
         "Should find 'add new' with case-sensitive search"
     );
 }

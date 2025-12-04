@@ -1,3 +1,4 @@
+#[allow(deprecated)]
 use assert_cmd::Command;
 use predicates::prelude::*;
 use std::fs;
@@ -9,7 +10,7 @@ fn test_no_matches_shows_simple_message() {
     // This is NOT an error - it's a valid state
     let temp_dir = TempDir::new().unwrap();
 
-    let mut cmd = Command::cargo_bin("cs").unwrap();
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.arg("nonexistent text")
         .current_dir(temp_dir.path())
         .assert()
@@ -24,7 +25,7 @@ fn test_yaml_parse_error_is_warning() {
     let yaml_path = temp_dir.path().join("invalid.yml");
     fs::write(&yaml_path, "key: [invalid yaml structure").unwrap();
 
-    let mut cmd = Command::cargo_bin("cs").unwrap();
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.arg("test")
         .current_dir(temp_dir.path())
         .assert()
@@ -41,7 +42,7 @@ fn test_json_parse_error_is_warning() {
     let json_path = temp_dir.path().join("invalid.json");
     fs::write(&json_path, "{ key: 'invalid json' }").unwrap(); // Invalid JSON (single quotes, no quotes on key)
 
-    let mut cmd = Command::cargo_bin("cs").unwrap();
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.arg("test")
         .current_dir(temp_dir.path())
         .assert()

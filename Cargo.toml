@@ -60,3 +60,7 @@ path = "tests/integration/error_cases.rs"
 [[bench]]
 name = "search_benchmark"
 harness = false
+
+[[test]]
+name = "integration_rg_args"
+path = "tests/integration/rg_args.rs"

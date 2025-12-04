@@ -74,16 +74,10 @@ impl PatternMatcher {
                 .collect();
 
             // Check if path starts with "src" or "tests" (but not "tests/fixtures")
-            let mut skip_file = false;
-            if !path_components.is_empty() {
-                if path_components[0] == "src" {
-                    skip_file = true;
-                } else if path_components[0] == "tests"
-                    && (path_components.len() < 2 || path_components[1] != "fixtures")
-                {
-                    skip_file = true;
-                }
-            }
+            let skip_file = !path_components.is_empty()
+                && (path_components[0] == "src"
+                    || (path_components[0] == "tests"
+                        && (path_components.len() < 2 || path_components[1] != "fixtures")));
 
             // Also skip markdown files
             if skip_file

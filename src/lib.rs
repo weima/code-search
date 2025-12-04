@@ -57,8 +57,11 @@ impl TraceQuery {
 pub struct SearchQuery {
     pub text: String,
     pub case_sensitive: bool,
+    pub word_match: bool,
+    pub is_regex: bool,
     pub base_dir: Option<PathBuf>,
     pub exclude_patterns: Vec<String>,
+    pub include_patterns: Vec<String>,
 }
 
 impl SearchQuery {
@@ -66,9 +69,27 @@ impl SearchQuery {
         Self {
             text,
             case_sensitive: false,
+            word_match: false,
+            is_regex: false,
             base_dir: None,
             exclude_patterns: Vec::new(),
+            include_patterns: Vec::new(),
         }
+    }
+
+    pub fn with_word_match(mut self, word_match: bool) -> Self {
+        self.word_match = word_match;
+        self
+    }
+
+    pub fn with_regex(mut self, is_regex: bool) -> Self {
+        self.is_regex = is_regex;
+        self
+    }
+
+    pub fn with_includes(mut self, includes: Vec<String>) -> Self {
+        self.include_patterns = includes;
+        self
     }
 
     pub fn with_case_sensitive(mut self, case_sensitive: bool) -> Self {
@@ -143,6 +164,9 @@ pub fn run_search(query: SearchQuery) -> Result<SearchResult> {
     // This ensures we find hardcoded text even if no translation keys are found
     let text_searcher = TextSearcher::new(base_dir.clone())
         .case_sensitive(query.case_sensitive)
+        .word_match(query.word_match)
+        .is_regex(query.is_regex)
+        .add_globs(query.include_patterns.clone())
         .respect_gitignore(true); // Always respect gitignore for now
 
     if let Ok(direct_matches) = text_searcher.search(&query.text) {

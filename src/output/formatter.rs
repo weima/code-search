@@ -13,7 +13,7 @@ impl TreeFormatter {
     /// Create a new TreeFormatter with default width (80 columns)
     pub fn new() -> Self {
         // Force color output even when not in a TTY
-        colored::control::set_override(true);
+
         Self { max_width: 80 }
     }
 
@@ -511,6 +511,7 @@ mod tests {
 
     #[test]
     fn test_highlight_case_insensitive_lowercase() {
+        colored::control::set_override(true); // Force colors for this test
         let formatter = TreeFormatter::new();
         let context = "const value = pmfc.getData();";
         let key = "PMFC";
@@ -525,6 +526,7 @@ mod tests {
 
     #[test]
     fn test_highlight_case_insensitive_uppercase() {
+        colored::control::set_override(true); // Force colors for this test
         let formatter = TreeFormatter::new();
         let context = "const value = PMFC.getData();";
         let key = "pmfc";
@@ -537,6 +539,7 @@ mod tests {
 
     #[test]
     fn test_highlight_case_insensitive_mixed() {
+        colored::control::set_override(true); // Force colors for this test
         let formatter = TreeFormatter::new();
         let context = "const a = PmFc.get(); const b = pmfc.set();";
         let key = "PMFC";
@@ -550,6 +553,7 @@ mod tests {
 
     #[test]
     fn test_highlight_with_special_regex_chars() {
+        colored::control::set_override(true); // Force colors for this test
         let formatter = TreeFormatter::new();
         let context = "price: $19.99";
         let key = "$19.99";
@@ -562,6 +566,7 @@ mod tests {
 
     #[test]
     fn test_highlight_exact_match_still_works() {
+        colored::control::set_override(true); // Force colors for this test
         let formatter = TreeFormatter::new();
         let context = "I18n.t('invoice.labels.add_new')";
         let key = "invoice.labels.add_new";
