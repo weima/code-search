@@ -1,0 +1,19 @@
+{
+    "errors": [
+        "Error 1",
+        "Error 2"
+    ],
+    "pages": {
+        "home": {
+            "welcome": "Welcome home",
+            "list": [
+                "Item 1",
+                "Item 2"
+            ]
+        }
+    },
+    "special.key": "Special Value",
+    "special": {
+        "key with spaces": "Value with spaces"
+    }
+}

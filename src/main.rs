@@ -74,7 +74,7 @@ struct Cli {
     depth: usize,
 
     /// Show verbose output including detailed parse error messages
-    #[arg(short = 'v', long)]
+    #[arg(long)]
     verbose: bool,
 }
 

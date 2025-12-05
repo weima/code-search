@@ -1,0 +1,19 @@
+pages:
+  home:
+    title: "Welcome Home"
+    list:
+      - "Item 1"
+      - "Item 2"
+      - "Item 3"
+    sections:
+      - header: "Section 1"
+        content: "Content 1"
+      - header: "Section 2"
+        content: "Content 2"
+errors:
+  - "Error 1"
+  - "Error 2"
+nested:
+  deep:
+    - - "Deep Item 1"
+      - "Deep Item 2"

@@ -130,8 +130,18 @@ impl YamlParser {
                     file: PathBuf::from(file_path),
                 });
             }
+            Yaml::Array(arr) => {
+                for (index, val) in arr.into_iter().enumerate() {
+                    let new_prefix = if prefix.is_empty() {
+                        index.to_string()
+                    } else {
+                        format!("{}.{}", prefix, index)
+                    };
+                    Self::flatten_yaml(val, new_prefix, file_path, value_to_line, entries, false);
+                }
+            }
             _ => {
-                // Ignore arrays and other types for now
+                // Ignore other types for now
             }
         }
     }
@@ -196,5 +206,20 @@ nested:
         let entry3 = entries.iter().find(|e| e.key == "nested.key3").unwrap();
         assert_eq!(entry3.value, "value3");
         assert_eq!(entry3.line, 5);
+    }
+
+    #[test]
+    fn test_parse_yaml_array() {
+        let mut file = NamedTempFile::new().unwrap();
+        write!(file, "list:\n  - item1\n  - item2").unwrap();
+
+        let entries = YamlParser::parse_file(file.path()).unwrap();
+        assert_eq!(entries.len(), 2);
+
+        let item1 = entries.iter().find(|e| e.value == "item1").unwrap();
+        assert_eq!(item1.key, "list.0");
+
+        let item2 = entries.iter().find(|e| e.value == "item2").unwrap();
+        assert_eq!(item2.key, "list.1");
     }
 }
