@@ -1,6 +1,6 @@
 [package]
 name = "code-search-cli"
-version = "0.1.12"
+version = "0.1.15-git2-test"
 edition = "2021"
 authors = ["Code Search Contributors"]
 description = "Intelligent code search tool for tracing text (UI text, function names, variables) to implementation code"
@@ -9,6 +9,9 @@ repository = "https://github.com/weima/code-search"
 readme = "README.md"
 keywords = ["cli", "i18n", "search", "translation", "code-search"]
 categories = ["command-line-utilities", "development-tools"]
+
+[workspace]
+members = ["tools/release"]
 
 [lib]
 name = "cs"

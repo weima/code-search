@@ -46,10 +46,11 @@ if [ "$COMMAND" == "prepare" ]; then
 
     echo "Updating CHANGELOG.md..."
     # Prepend new version header (simplified)
+    # Insert new version header after [Unreleased]
     DATE=$(date +%Y-%m-%d)
-    sed -i '' "129i\\
-## [$CLEAN_VERSION] - $DATE\\
-" CHANGELOG.md
+    sed -i '' "s/## \[Unreleased\]/## [Unreleased]\\
+\\
+## [$CLEAN_VERSION] - $DATE/" CHANGELOG.md
 
     echo "Committing changes..."
     git add Cargo.toml npm/package.json npm/install.js CHANGELOG.md
