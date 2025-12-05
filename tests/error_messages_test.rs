@@ -26,8 +26,8 @@ fn test_yaml_parse_error_is_warning() {
     fs::write(&yaml_path, "key: [invalid yaml structure").unwrap();
 
     let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
-    cmd.arg("test")
-        .arg("--verbose") // Enable verbose mode to see detailed warnings
+    cmd.arg("--verbose") // Enable verbose mode to see detailed warnings
+        .arg("test")
         .current_dir(temp_dir.path())
         .assert()
         .success() // Should NOT fail
@@ -44,8 +44,8 @@ fn test_json_parse_error_is_warning() {
     fs::write(&json_path, "{ key: 'invalid json' }").unwrap(); // Invalid JSON (single quotes, no quotes on key)
 
     let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
-    cmd.arg("test")
-        .arg("--verbose") // Enable verbose mode to see detailed warnings
+    cmd.arg("--verbose") // Enable verbose mode to see detailed warnings
+        .arg("test")
         .current_dir(temp_dir.path())
         .assert()
         .success() // Should NOT fail

@@ -71,10 +71,10 @@ impl ReferenceTreeBuilder {
 
     /// Build a translation node from a translation entry
     fn build_translation_node(entry: &TranslationEntry) -> TreeNode {
-        let content = format!("{}: '{}'", entry.key, entry.value);
         let location = Location::new(entry.file.clone(), entry.line);
-
-        TreeNode::with_location(NodeType::Translation, content, location)
+        let mut node = TreeNode::with_location(NodeType::Translation, entry.key.clone(), location);
+        node.metadata = Some(entry.value.clone());
+        node
     }
 
     /// Build a key path node from a translation entry
@@ -123,7 +123,8 @@ mod tests {
         let node = ReferenceTreeBuilder::build_translation_node(&entry);
 
         assert_eq!(node.node_type, NodeType::Translation);
-        assert_eq!(node.content, "invoice.labels.add_new: 'add new'");
+        assert_eq!(node.content, "invoice.labels.add_new");
+        assert_eq!(node.metadata.as_deref(), Some("add new"));
         assert!(node.location.is_some());
         assert_eq!(node.location.unwrap().line, 4);
     }
@@ -166,7 +167,8 @@ mod tests {
         // Check translation node
         let translation = &tree.root.children[0];
         assert_eq!(translation.node_type, NodeType::Translation);
-        assert!(translation.content.contains("invoice.labels.add_new"));
+        assert_eq!(translation.content, "invoice.labels.add_new");
+        assert_eq!(translation.metadata.as_deref(), Some("add new"));
         assert_eq!(translation.children.len(), 1);
 
         // Check key path node

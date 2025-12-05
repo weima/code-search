@@ -73,8 +73,18 @@ impl JsonParser {
                     file: PathBuf::from(file_path),
                 });
             }
+            Value::Array(arr) => {
+                for (index, val) in arr.iter().enumerate() {
+                    let new_prefix = if prefix.is_empty() {
+                        index.to_string()
+                    } else {
+                        format!("{}.{}", prefix, index)
+                    };
+                    Self::flatten_json(val, new_prefix, file_path, entries);
+                }
+            }
             _ => {
-                // Ignore arrays and nulls for now
+                // Ignore nulls for now
             }
         }
     }
@@ -106,5 +116,22 @@ mod tests {
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].key, "parent.child");
         assert_eq!(entries[0].value, "value");
+    }
+
+    #[test]
+    fn test_parse_json_array() {
+        let mut file = NamedTempFile::new().unwrap();
+        write!(file, r#"{{"list": ["item1", "item2"]}}"#).unwrap();
+
+        let entries = JsonParser::parse_file(file.path()).unwrap();
+        assert_eq!(entries.len(), 2);
+
+        // Check first item
+        let item1 = entries.iter().find(|e| e.value == "item1").unwrap();
+        assert_eq!(item1.key, "list.0");
+
+        // Check second item
+        let item2 = entries.iter().find(|e| e.value == "item2").unwrap();
+        assert_eq!(item2.key, "list.1");
     }
 }

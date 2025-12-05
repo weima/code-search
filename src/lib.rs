@@ -182,7 +182,10 @@ pub fn run_search(query: SearchQuery) -> Result<SearchResult> {
         for m in direct_matches {
             // Filter out matches that are in translation files (already handled)
             let path_str = m.file.to_string_lossy();
-            if path_str.ends_with(".yml") || path_str.ends_with(".yaml") {
+            if path_str.ends_with(".yml")
+                || path_str.ends_with(".yaml")
+                || path_str.ends_with(".json")
+            {
                 continue;
             }
 
@@ -247,7 +250,7 @@ pub fn filter_translation_files(matches: &[Match]) -> Vec<PathBuf> {
         .iter()
         .filter(|m| {
             let path = m.file.to_string_lossy();
-            path.ends_with(".yml") || path.ends_with(".yaml")
+            path.ends_with(".yml") || path.ends_with(".yaml") || path.ends_with(".json")
         })
         .map(|m| m.file.clone())
         .collect()

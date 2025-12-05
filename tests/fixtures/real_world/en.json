@@ -1,0 +1,28 @@
+{
+    "common": {
+        "actions": {
+            "add": "Add new",
+            "save": "Save",
+            "cancel": "Cancel"
+        },
+        "messages": {
+            "success": "Successfully saved",
+            "error": "An error occurred"
+        }
+    },
+    "auth": {
+        "login": {
+            "title": "Login",
+            "username": "Username",
+            "password": "Password",
+            "submit": "Sign In"
+        }
+    },
+    "nested": {
+        "deep": {
+            "deeper": {
+                "deepest": "Found me!"
+            }
+        }
+    }
+}

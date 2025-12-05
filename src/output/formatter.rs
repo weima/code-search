@@ -275,8 +275,13 @@ impl TreeFormatter {
                 format!("'{}' (search query)", node.content)
             }
             NodeType::Translation => {
-                // Truncate if too long
-                self.truncate(&node.content, self.max_width - 20)
+                let key = &node.content;
+                let value = node.metadata.as_deref().unwrap_or("");
+
+                // Truncate value if too long
+                let truncated_value = self.truncate(value, self.max_width - key.len() - 10);
+
+                format!("{}: '{}'", key.yellow().bold(), truncated_value.green())
             }
             NodeType::KeyPath => {
                 format!("Key: {}", node.content)
@@ -345,11 +350,12 @@ mod tests {
     #[test]
     fn test_format_tree_with_translation() {
         let mut root = TreeNode::new(NodeType::Root, "add new".to_string());
-        let translation = TreeNode::with_location(
+        let mut translation = TreeNode::with_location(
             NodeType::Translation,
-            "invoice.labels.add_new: 'add new'".to_string(),
+            "invoice.labels.add_new".to_string(),
             Location::new(PathBuf::from("en.yml"), 4),
         );
+        translation.metadata = Some("add new".to_string());
         root.add_child(translation);
 
         let tree = ReferenceTree::new(root);
@@ -368,9 +374,10 @@ mod tests {
 
         let mut translation = TreeNode::with_location(
             NodeType::Translation,
-            "invoice.labels.add_new: 'add new'".to_string(),
+            "invoice.labels.add_new".to_string(),
             Location::new(PathBuf::from("en.yml"), 4),
         );
+        translation.metadata = Some("add new".to_string());
 
         let mut key_path = TreeNode::new(NodeType::KeyPath, "invoice.labels.add_new".to_string());
 
@@ -402,17 +409,19 @@ mod tests {
     fn test_format_multiple_children() {
         let mut root = TreeNode::new(NodeType::Root, "test".to_string());
 
-        let child1 = TreeNode::with_location(
+        let mut child1 = TreeNode::with_location(
             NodeType::Translation,
-            "key1: 'value1'".to_string(),
+            "key1".to_string(),
             Location::new(PathBuf::from("file1.yml"), 1),
         );
+        child1.metadata = Some("value1".to_string());
 
-        let child2 = TreeNode::with_location(
+        let mut child2 = TreeNode::with_location(
             NodeType::Translation,
-            "key2: 'value2'".to_string(),
+            "key2".to_string(),
             Location::new(PathBuf::from("file2.yml"), 2),
         );
+        child2.metadata = Some("value2".to_string());
 
         root.add_child(child1);
         root.add_child(child2);
