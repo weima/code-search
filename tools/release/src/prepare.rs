@@ -150,8 +150,15 @@ fn commit_and_push(repo: &Repository, branch_name: &str, version: &str) -> Resul
     let mut remote = repo.find_remote("origin")?;
 
     let mut callbacks = RemoteCallbacks::new();
-    callbacks.credentials(|_url, username_from_url, _allowed_types| {
-        Cred::ssh_key_from_agent(username_from_url.unwrap_or("git"))
+    callbacks.credentials(|url, username_from_url, allowed_types| {
+        if allowed_types.contains(git2::CredentialType::USER_PASS_PLAINTEXT) {
+            let config = git2::Config::open_default()?;
+            return Cred::credential_helper(&config, url, username_from_url);
+        }
+        if allowed_types.contains(git2::CredentialType::SSH_KEY) {
+            return Cred::ssh_key_from_agent(username_from_url.unwrap_or("git"));
+        }
+        Err(git2::Error::from_str("no valid credential type"))
     });
 
     let mut push_opts = PushOptions::new();
