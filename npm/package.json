@@ -1,33 +1,33 @@
 {
-    "name": "code-search-cli",
-    "version": "0.1.12",
-    "description": "Intelligent code search tool for tracing text to implementation code",
-    "bin": {
-        "cs": "bin/cs"
-    },
-    "scripts": {
-        "postinstall": "node install.js"
-    },
-    "repository": {
-        "type": "git",
-        "url": "git+https://github.com/weima/code-search.git"
-    },
-    "keywords": [
-        "cli",
-        "search",
-        "i18n",
-        "code-search",
-        "rust"
-    ],
-    "author": "Code Search Contributors",
-    "license": "Apache-2.0",
-    "bugs": {
-        "url": "https://github.com/weima/code-search/issues"
-    },
-    "homepage": "https://github.com/weima/code-search#readme",
-    "dependencies": {
-        "axios": "^1.6.0",
-        "tar": "^6.2.0",
-        "adm-zip": "^0.5.10"
-    }
+  "author": "Code Search Contributors",
+  "bin": {
+    "cs": "bin/cs"
+  },
+  "bugs": {
+    "url": "https://github.com/weima/code-search/issues"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.10",
+    "axios": "^1.6.0",
+    "tar": "^6.2.0"
+  },
+  "description": "Intelligent code search tool for tracing text to implementation code",
+  "homepage": "https://github.com/weima/code-search#readme",
+  "keywords": [
+    "cli",
+    "search",
+    "i18n",
+    "code-search",
+    "rust"
+  ],
+  "license": "Apache-2.0",
+  "name": "code-search-cli",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/weima/code-search.git"
+  },
+  "scripts": {
+    "postinstall": "node install.js"
+  },
+  "version": "0.1.15"
 }

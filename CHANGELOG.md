@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.15] - 2025-12-04
+
 ### Changed
 - **Architecture Improvement**: Migrated from external `rg` command to ripgrep as a library
   - No longer requires system-installed ripgrep binary
