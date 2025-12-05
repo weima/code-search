@@ -29,5 +29,5 @@
   "scripts": {
     "postinstall": "node install.js"
   },
-  "version": "0.1.15-git2-test"
+  "version": "0.1.15"
 }

@@ -1,6 +1,6 @@
 [package]
 name = "code-search-cli"
-version = "0.1.15-git2-test"
+version = "0.1.15"
 edition = "2021"
 authors = ["Code Search Contributors"]
 description = "Intelligent code search tool for tracing text (UI text, function names, variables) to implementation code"
