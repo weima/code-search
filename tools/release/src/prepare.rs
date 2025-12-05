@@ -1,8 +1,10 @@
 use anyhow::{bail, Context, Result};
 use chrono::Local;
+use git2::{Cred, PushOptions, RemoteCallbacks, Repository, Signature};
 use regex::Regex;
 use serde_json::Value;
 use std::fs;
+use std::path::Path;
 use std::process::Command;
 use toml_edit::{value, Document};
 
@@ -10,46 +12,57 @@ pub fn run(version: String) -> Result<()> {
     let clean_version = version.trim_start_matches('v');
     println!("=== Preparing Release {} ===", version);
 
-    check_clean_git()?;
+    // Open repository
+    let repo = Repository::open(".")?;
+
+    check_clean_git(&repo)?;
 
     let branch_name = format!("build-release-{}", version);
-    create_branch(&branch_name)?;
+    create_branch(&repo, &branch_name)?;
 
     bump_cargo_version(clean_version)?;
     bump_npm_version(clean_version)?;
     bump_install_js_version(clean_version)?;
     update_changelog(clean_version)?;
 
-    commit_and_push(&branch_name, &version)?;
+    commit_and_push(&repo, &branch_name, &version)?;
     create_pr(&branch_name, &version)?;
 
     Ok(())
 }
 
-fn check_clean_git() -> Result<()> {
-    let output = Command::new("git")
-        .args(["status", "--porcelain"])
-        .output()
-        .context("Failed to run git status")?;
+fn check_clean_git(repo: &Repository) -> Result<()> {
+    let mut status_opts = git2::StatusOptions::new();
+    status_opts.include_untracked(true);
 
-    if !output.stdout.is_empty() {
+    let statuses = repo.statuses(Some(&mut status_opts))?;
+
+    if !statuses.is_empty() {
         bail!("Git working directory is not clean. Please commit or stash changes.");
     }
     Ok(())
 }
 
-fn create_branch(branch_name: &str) -> Result<()> {
+fn create_branch(repo: &Repository, branch_name: &str) -> Result<()> {
     println!("Creating branch {}...", branch_name);
-    Command::new("git")
-        .args(["checkout", "-b", branch_name])
-        .status()
+
+    let head = repo.head()?;
+    let commit = head.peel_to_commit()?;
+
+    repo.branch(branch_name, &commit, false)
         .context("Failed to create branch")?;
+
+    // Checkout the new branch
+    let obj = repo.revparse_single(&format!("refs/heads/{}", branch_name))?;
+    repo.checkout_tree(&obj, None)?;
+    repo.set_head(&format!("refs/heads/{}", branch_name))?;
+
     Ok(())
 }
 
 fn bump_cargo_version(version: &str) -> Result<()> {
     println!("Bumping Cargo.toml to {}...", version);
-    let cargo_toml_path = "../../Cargo.toml";
+    let cargo_toml_path = "Cargo.toml";
     let cargo_toml = fs::read_to_string(cargo_toml_path).context("Failed to read Cargo.toml")?;
     let mut doc = cargo_toml
         .parse::<Document>()
@@ -63,7 +76,7 @@ fn bump_cargo_version(version: &str) -> Result<()> {
 
 fn bump_npm_version(version: &str) -> Result<()> {
     println!("Bumping npm/package.json to {}...", version);
-    let package_json_path = "../../npm/package.json";
+    let package_json_path = "npm/package.json";
     let package_json =
         fs::read_to_string(package_json_path).context("Failed to read package.json")?;
     let mut json: Value =
@@ -80,7 +93,7 @@ fn bump_npm_version(version: &str) -> Result<()> {
 
 fn bump_install_js_version(version: &str) -> Result<()> {
     println!("Bumping npm/install.js to {}...", version);
-    let install_js_path = "../../npm/install.js";
+    let install_js_path = "npm/install.js";
     let content = fs::read_to_string(install_js_path).context("Failed to read install.js")?;
 
     let re = Regex::new(r"const VERSION = '.*';").unwrap();
@@ -92,7 +105,7 @@ fn bump_install_js_version(version: &str) -> Result<()> {
 
 fn update_changelog(version: &str) -> Result<()> {
     println!("Updating CHANGELOG.md...");
-    let changelog_path = "../../CHANGELOG.md";
+    let changelog_path = "CHANGELOG.md";
     let content = fs::read_to_string(changelog_path).context("Failed to read CHANGELOG.md")?;
 
     let date = Local::now().format("%Y-%m-%d").to_string();
@@ -108,36 +121,47 @@ fn update_changelog(version: &str) -> Result<()> {
     Ok(())
 }
 
-fn commit_and_push(branch_name: &str, version: &str) -> Result<()> {
+fn commit_and_push(repo: &Repository, branch_name: &str, version: &str) -> Result<()> {
     println!("Committing changes...");
-    Command::new("git")
-        .args([
-            "add",
-            "Cargo.toml",
-            "npm/package.json",
-            "npm/install.js",
-            "CHANGELOG.md",
-        ])
-        .current_dir("../..") // Run from root
-        .status()
-        .context("Failed to git add")?;
 
-    Command::new("git")
-        .args([
-            "commit",
-            "-m",
-            &format!("chore: bump versions to {}", version),
-        ])
-        .current_dir("../..")
-        .status()
-        .context("Failed to git commit")?;
+    let mut index = repo.index()?;
+    index.add_path(Path::new("Cargo.toml"))?;
+    index.add_path(Path::new("npm/package.json"))?;
+    index.add_path(Path::new("npm/install.js"))?;
+    index.add_path(Path::new("CHANGELOG.md"))?;
+    index.write()?;
+
+    let oid = index.write_tree()?;
+    let tree = repo.find_tree(oid)?;
+    let parent = repo.head()?.peel_to_commit()?;
+
+    let sig = Signature::now("Code Search Bot", "bot@code-search.com")?;
+
+    repo.commit(
+        Some("HEAD"),
+        &sig,
+        &sig,
+        &format!("chore: bump versions to {}", version),
+        &tree,
+        &[&parent],
+    )?;
 
     println!("Pushing branch {}...", branch_name);
-    Command::new("git")
-        .args(["push", "-u", "origin", branch_name])
-        .current_dir("../..")
-        .status()
-        .context("Failed to git push")?;
+    let mut remote = repo.find_remote("origin")?;
+
+    let mut callbacks = RemoteCallbacks::new();
+    callbacks.credentials(|_url, username_from_url, _allowed_types| {
+        Cred::ssh_key_from_agent(username_from_url.unwrap_or("git"))
+    });
+
+    let mut push_opts = PushOptions::new();
+    push_opts.remote_callbacks(callbacks);
+
+    remote.push(
+        &[&format!("refs/heads/{}", branch_name)],
+        Some(&mut push_opts),
+    )?;
+
     Ok(())
 }
 
@@ -164,7 +188,6 @@ fn create_pr(branch_name: &str, version: &str) -> Result<()> {
             "--assignee",
             "@me",
         ])
-        .current_dir("../..")
         .status()
         .context("Failed to create PR")?;
     Ok(())

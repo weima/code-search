@@ -1,5 +1,7 @@
 use anyhow::{bail, Context, Result};
+use git2::{Cred, PushOptions, RemoteCallbacks, Repository, Signature};
 use std::fs;
+use std::path::Path;
 use std::process::Command;
 use std::thread;
 use std::time::Duration;
@@ -9,50 +11,66 @@ pub fn run(version: String) -> Result<()> {
     println!("=== Publishing Release {} ===", version);
     let clean_version = version.trim_start_matches('v');
 
-    check_uncommitted_changes();
-    create_and_push_tag(&version)?;
+    let repo = Repository::open(".")?;
+
+    check_uncommitted_changes(&repo);
+    create_and_push_tag(&repo, &version)?;
     wait_for_github_assets(&version)?;
     publish_to_crates_io()?;
     publish_to_npm()?;
-    update_homebrew(&version, clean_version)?;
+    update_homebrew(&repo, &version, clean_version)?;
 
     println!("\nDone! Release {} published.", version);
     Ok(())
 }
 
-fn check_uncommitted_changes() {
-    let output = Command::new("git")
-        .args(["status", "--porcelain"])
-        .output()
-        .expect("Failed to run git status");
+fn check_uncommitted_changes(repo: &Repository) {
+    let mut status_opts = git2::StatusOptions::new();
+    status_opts.include_untracked(true);
 
-    if !output.stdout.is_empty() {
-        println!("Warning: Git working directory has uncommitted changes.");
-        println!("Continuing anyway since this might be expected for release branches...");
+    if let Ok(statuses) = repo.statuses(Some(&mut status_opts)) {
+        if !statuses.is_empty() {
+            println!("Warning: Git working directory has uncommitted changes.");
+            println!("Continuing anyway since this might be expected for release branches...");
+        }
     }
 }
 
-fn create_and_push_tag(version: &str) -> Result<()> {
+fn create_and_push_tag(repo: &Repository, version: &str) -> Result<()> {
     // Check if tag exists
-    let output = Command::new("git").args(["rev-parse", version]).output()?;
-
-    if output.status.success() {
+    if repo.revparse_single(version).is_ok() {
         println!("Tag {} already exists.", version);
         return Ok(());
     }
 
     println!("Creating tag {}...", version);
-    Command::new("git")
-        .args(["tag", version])
-        .status()
+    let head = repo.head()?;
+    let commit = head.peel_to_commit()?;
+    let obj = commit.into_object();
+
+    let sig = Signature::now("Code Search Bot", "bot@code-search.com")?;
+
+    repo.tag(version, &obj, &sig, &format!("Release {}", version), false)
         .context("Failed to create tag")?;
 
     println!("Pushing tag {}...", version);
-    Command::new("git")
-        .args(["push", "origin", version])
-        .status()
-        .context("Failed to push tag")?;
+    push_ref(repo, &format!("refs/tags/{}", version))?;
 
+    Ok(())
+}
+
+fn push_ref(repo: &Repository, ref_spec: &str) -> Result<()> {
+    let mut remote = repo.find_remote("origin")?;
+
+    let mut callbacks = RemoteCallbacks::new();
+    callbacks.credentials(|_url, username_from_url, _allowed_types| {
+        Cred::ssh_key_from_agent(username_from_url.unwrap_or("git"))
+    });
+
+    let mut push_opts = PushOptions::new();
+    push_opts.remote_callbacks(callbacks);
+
+    remote.push(&[ref_spec], Some(&mut push_opts))?;
     Ok(())
 }
 
@@ -97,7 +115,6 @@ fn publish_to_crates_io() -> Result<()> {
     // Run from root
     let status = Command::new("cargo")
         .arg("publish")
-        .current_dir("../..")
         .status()
         .context("Failed to run cargo publish")?;
 
@@ -113,7 +130,7 @@ fn publish_to_npm() -> Result<()> {
     println!("Publishing to NPM...");
     let status = Command::new("npm")
         .arg("publish")
-        .current_dir("../../npm")
+        .current_dir("npm")
         .status()
         .context("Failed to run npm publish")?;
 
@@ -125,7 +142,7 @@ fn publish_to_npm() -> Result<()> {
     Ok(())
 }
 
-fn update_homebrew(version: &str, clean_version: &str) -> Result<()> {
+fn update_homebrew(repo: &Repository, version: &str, clean_version: &str) -> Result<()> {
     println!("Updating Homebrew Formula...");
     let branch_name = format!("homebrew-{}", version);
     let url = format!(
@@ -134,7 +151,7 @@ fn update_homebrew(version: &str, clean_version: &str) -> Result<()> {
     );
 
     // Download asset to calculate SHA
-    let mut temp_file = NamedTempFile::new()?;
+    let temp_file = NamedTempFile::new()?;
     let status = Command::new("curl")
         .args(["-L", "-o", temp_file.path().to_str().unwrap(), &url])
         .status()
@@ -158,19 +175,22 @@ fn update_homebrew(version: &str, clean_version: &str) -> Result<()> {
 
     // Git operations
     // Check if branch exists
-    let _ = Command::new("git")
-        .args(["branch", "-D", &branch_name])
-        .current_dir("../..")
-        .output();
+    if let Ok(mut branch) = repo.find_branch(&branch_name, git2::BranchType::Local) {
+        branch.delete()?;
+    }
 
-    Command::new("git")
-        .args(["checkout", "-b", &branch_name])
-        .current_dir("../..")
-        .status()
-        .context("Failed to create branch")?;
+    // Create branch
+    let head = repo.head()?;
+    let commit = head.peel_to_commit()?;
+    repo.branch(&branch_name, &commit, false)?;
+
+    // Checkout branch
+    let obj = repo.revparse_single(&format!("refs/heads/{}", branch_name))?;
+    repo.checkout_tree(&obj, None)?;
+    repo.set_head(&format!("refs/heads/{}", branch_name))?;
 
     // Update Formula
-    let formula_path = "../../Formula/cs.rb";
+    let formula_path = "Formula/cs.rb";
     let content = fs::read_to_string(formula_path).context("Failed to read Formula")?;
 
     // Use regex for replacement
@@ -185,25 +205,27 @@ fn update_homebrew(version: &str, clean_version: &str) -> Result<()> {
     fs::write(formula_path, c3.to_string()).context("Failed to write Formula")?;
 
     // Commit and Push
-    Command::new("git")
-        .args(["add", "Formula/cs.rb"])
-        .current_dir("../..")
-        .status()?;
+    let mut index = repo.index()?;
+    index.add_path(Path::new("Formula/cs.rb"))?;
+    index.write()?;
 
-    Command::new("git")
-        .args([
-            "commit",
-            "-m",
-            &format!("chore: update homebrew formula to {}", version),
-        ])
-        .current_dir("../..")
-        .status()?;
+    let oid = index.write_tree()?;
+    let tree = repo.find_tree(oid)?;
+    let parent = repo.head()?.peel_to_commit()?;
+
+    let sig = Signature::now("Code Search Bot", "bot@code-search.com")?;
+
+    repo.commit(
+        Some("HEAD"),
+        &sig,
+        &sig,
+        &format!("chore: update homebrew formula to {}", version),
+        &tree,
+        &[&parent],
+    )?;
 
     println!("Pushing branch {}...", branch_name);
-    Command::new("git")
-        .args(["push", "-u", "origin", &branch_name])
-        .current_dir("../..")
-        .status()?;
+    push_ref(repo, &format!("refs/heads/{}", branch_name))?;
 
     // Create PR
     if Command::new("gh").arg("--version").output().is_ok() {
@@ -226,14 +248,10 @@ fn update_homebrew(version: &str, clean_version: &str) -> Result<()> {
                 "--assignee",
                 "@me",
             ])
-            .current_dir("../..")
             .status()?;
     } else {
         println!("GitHub CLI (gh) not found. Please create PR manually.");
     }
-
-    // Return to original branch (simplified, assumes main or we can just stay)
-    // For now, let's stay on the branch to let user verify
 
     Ok(())
 }
