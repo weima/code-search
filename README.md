@@ -180,27 +180,27 @@ views/invoice.erb.rails:45:<%= t('invoice.labels.add_new') %>
 
 ### Phase 1: Core Functionality
 - [x] Project setup and architecture
-- [ ] YAML translation file parsing
-- [ ] Text-to-key mapping
-- [ ] Key-to-code tracing
-- [ ] Basic tree visualization
+- [x] YAML translation file parsing
+- [x] Text-to-key mapping
+- [x] Key-to-code tracing
+- [x] Basic tree visualization
 
 ### Phase 2: Call Graph Tracing
-- [ ] Function definition detection (JS, Ruby, Python, Rust)
-- [ ] Forward call tracing (`--trace`)
-- [ ] Backward call tracing (`--traceback`)
-- [ ] Depth limiting and cycle detection
+- [x] Function definition detection (JS, Ruby, Python, Rust)
+- [x] Forward call tracing (`--trace`)
+- [x] Backward call tracing (`--traceback`)
+- [x] Depth limiting and cycle detection
 
 ### Phase 3: Enhanced Features
-- [ ] JSON translation support
-- [ ] Multiple i18n pattern detection
-- [ ] Tree-sitter for improved accuracy
+- [x] JSON translation support
+- [x] Multiple i18n pattern detection
+- [x] Tree-sitter for improved accuracy
 - [ ] Configuration file support
 
 ### Phase 4: Advanced Features
 - [ ] Interactive navigation
-- [ ] Multi-language project support
-- [ ] Caching for performance
+- [x] Multi-language project support
+- [x] Caching for performance
 - [ ] Editor integration (VSCode, Vim)
 
 ## Architecture
