@@ -33,7 +33,7 @@ pub struct CallTree {
 pub struct CallGraphBuilder<'a> {
     direction: TraceDirection,
     max_depth: usize,
-    finder: &'a FunctionFinder,
+    finder: &'a mut FunctionFinder,
     extractor: &'a CallExtractor,
 }
 
@@ -48,7 +48,7 @@ impl<'a> CallGraphBuilder<'a> {
     pub fn new(
         direction: TraceDirection,
         max_depth: usize,
-        finder: &'a FunctionFinder,
+        finder: &'a mut FunctionFinder,
         extractor: &'a CallExtractor,
     ) -> Self {
         Self {
@@ -60,7 +60,7 @@ impl<'a> CallGraphBuilder<'a> {
     }
 
     /// Build a call trace tree starting from the given function
-    pub fn build_trace(&self, start_fn: &FunctionDef) -> Result<Option<CallTree>> {
+    pub fn build_trace(&mut self, start_fn: &FunctionDef) -> Result<Option<CallTree>> {
         let mut current_path = HashSet::new();
 
         match self.build_node(start_fn, 0, &mut current_path) {
@@ -74,7 +74,7 @@ impl<'a> CallGraphBuilder<'a> {
     /// Uses proper cycle detection with current_path to prevent infinite recursion
     /// while still allowing the same function to appear in different branches.
     fn build_node(
-        &self,
+        &mut self,
         func: &FunctionDef,
         depth: usize,
         current_path: &mut HashSet<FunctionDef>,
@@ -117,7 +117,7 @@ impl<'a> CallGraphBuilder<'a> {
 
     /// Build children for forward tracing (what does this function call?)
     fn build_forward_children(
-        &self,
+        &mut self,
         func: &FunctionDef,
         depth: usize,
         current_path: &mut HashSet<FunctionDef>,
@@ -146,7 +146,7 @@ impl<'a> CallGraphBuilder<'a> {
 
     /// Build children for backward tracing (who calls this function?)
     fn build_backward_children(
-        &self,
+        &mut self,
         func: &FunctionDef,
         depth: usize,
         current_path: &mut HashSet<FunctionDef>,
@@ -345,10 +345,10 @@ mod tests {
         use std::env;
 
         let base_dir = env::current_dir().unwrap();
-        let finder = FunctionFinder::new(base_dir.clone());
+        let mut finder = FunctionFinder::new(base_dir.clone());
         let extractor = CallExtractor::new(base_dir);
 
-        let builder = CallGraphBuilder::new(TraceDirection::Forward, 5, &finder, &extractor);
+        let builder = CallGraphBuilder::new(TraceDirection::Forward, 5, &mut finder, &extractor);
 
         assert_eq!(builder.direction, TraceDirection::Forward);
         assert_eq!(builder.max_depth, 5);
@@ -360,13 +360,13 @@ mod tests {
         use std::env;
 
         let base_dir = env::current_dir().unwrap();
-        let finder = FunctionFinder::new(base_dir.clone());
+        let mut finder = FunctionFinder::new(base_dir.clone());
         let extractor = CallExtractor::new(base_dir);
 
-        let builder = CallGraphBuilder::new(
+        let mut builder = CallGraphBuilder::new(
             TraceDirection::Forward,
             0, // Max depth of 0 should only return root
-            &finder,
+            &mut finder,
             &extractor,
         );
 
@@ -387,10 +387,11 @@ mod tests {
         use std::env;
 
         let base_dir = env::current_dir().unwrap();
-        let finder = FunctionFinder::new(base_dir.clone());
+        let mut finder = FunctionFinder::new(base_dir.clone());
         let extractor = CallExtractor::new(base_dir);
 
-        let builder = CallGraphBuilder::new(TraceDirection::Forward, 10, &finder, &extractor);
+        let mut builder =
+            CallGraphBuilder::new(TraceDirection::Forward, 10, &mut finder, &extractor);
 
         let test_func = create_test_function("recursive", "test.js", 1);
         let mut path = HashSet::new();

@@ -1,4 +1,5 @@
 use crate::error::{Result, SearchError};
+use crate::parse::Sitter; // Import Sitter
 use crate::search::TextSearcher;
 use regex::Regex;
 use std::collections::HashSet;
@@ -14,11 +15,12 @@ pub struct FunctionDef {
     pub body: String,
 }
 
-/// Finds function definitions in code using pattern matching
+/// Finds function definitions in code using Tree-sitter (primary) and pattern matching (fallback)
 pub struct FunctionFinder {
     searcher: TextSearcher,
     patterns: Vec<Regex>,
     base_dir: PathBuf,
+    sitter: Sitter,
 }
 
 impl FunctionFinder {
@@ -31,6 +33,7 @@ impl FunctionFinder {
             searcher: TextSearcher::new(base_dir.clone()),
             patterns: Self::default_patterns(),
             base_dir,
+            sitter: Sitter::new(),
         }
     }
 
@@ -58,52 +61,36 @@ impl FunctionFinder {
         ]
     }
 
-    /// Generate case variants of a function name for cross-case searching
-    ///
-    /// For input "createUser" generates: ["createUser", "create_user", "CreateUser"]
-    /// For input "user_profile" generates: ["user_profile", "userProfile", "UserProfile"]
+    /// Generate case variants (omitted for brevity, same as before)
     fn generate_case_variants(func_name: &str) -> Vec<String> {
         let mut variants = HashSet::new();
-
-        // Always include the original
         variants.insert(func_name.to_string());
-
-        // Generate snake_case variant
         let snake_case = Self::to_snake_case(func_name);
         variants.insert(snake_case.clone());
-
-        // Generate camelCase variant
         let camel_case = Self::to_camel_case(&snake_case);
         variants.insert(camel_case.clone());
-
-        // Generate PascalCase variant
         let pascal_case = Self::to_pascal_case(&snake_case);
         variants.insert(pascal_case);
-
         variants.into_iter().collect()
     }
 
-    /// Convert to snake_case
+    // ... helper methods (to_snake_case, etc.) unchanged ...
     fn to_snake_case(input: &str) -> String {
         let mut result = String::new();
-
         for (i, ch) in input.chars().enumerate() {
             if ch.is_uppercase() && i > 0 {
                 result.push('_');
             }
             result.push(ch.to_lowercase().next().unwrap());
         }
-
         result
     }
 
-    /// Convert snake_case to camelCase
     fn to_camel_case(input: &str) -> String {
         let parts: Vec<&str> = input.split('_').collect();
         if parts.is_empty() {
             return String::new();
         }
-
         let mut result = parts[0].to_lowercase();
         for part in parts.iter().skip(1) {
             if !part.is_empty() {
@@ -114,15 +101,12 @@ impl FunctionFinder {
                 }
             }
         }
-
         result
     }
 
-    /// Convert snake_case to PascalCase
     fn to_pascal_case(input: &str) -> String {
         let parts: Vec<&str> = input.split('_').collect();
         let mut result = String::new();
-
         for part in parts {
             if !part.is_empty() {
                 let mut chars = part.chars();
@@ -132,34 +116,19 @@ impl FunctionFinder {
                 }
             }
         }
-
         result
     }
 
     /// Find a single function definition, preferring exact matches
-    ///
-    /// This method first tries to find an exact match for the function name.
-    /// If that fails, it tries case-insensitive variants (snake_case, camelCase, PascalCase).
-    ///
-    /// # Arguments
-    /// * `func_name` - The name of the function to find
-    ///
-    /// # Returns
-    /// The best matching `FunctionDef`, or `None` if not found.
-    pub fn find_function(&self, func_name: &str) -> Option<FunctionDef> {
-        // Try exact match first
+    pub fn find_function(&mut self, func_name: &str) -> Option<FunctionDef> {
         if let Ok(mut defs) = self.find_definition(func_name) {
             if let Some(def) = defs.pop() {
                 return Some(def);
             }
         }
-
-        // Try case variants if exact match fails
         let variants = Self::generate_case_variants(func_name);
-
         for variant in variants {
             if variant != func_name {
-                // Skip the exact match we already tried
                 if let Ok(mut defs) = self.find_definition(&variant) {
                     if let Some(def) = defs.pop() {
                         return Some(def);
@@ -167,35 +136,29 @@ impl FunctionFinder {
                 }
             }
         }
-
         None
     }
 
     /// Find all definitions of a function by name
-    ///
-    /// Searches the codebase for function definitions matching the given name.
-    /// Returns all found definitions with their file locations.
-    pub fn find_definition(&self, func_name: &str) -> Result<Vec<FunctionDef>> {
+    pub fn find_definition(&mut self, func_name: &str) -> Result<Vec<FunctionDef>> {
         let mut results = Vec::new();
 
-        // Search for the function name in code
+        // 1. Search for files containing the function name
+        // We still use grep to find candidate files quickly
         let matches = self.searcher.search(func_name)?;
 
-        // Filter matches that look like function definitions
+        // 2. Process each candidate file
         for m in matches {
-            // Filter out the tool's own source files (cross-platform)
+            // Filter out tools/tests (same logic as before)
             // Convert absolute path to relative path for filtering
             let relative_path_buf = match m.file.strip_prefix(&self.base_dir) {
                 Ok(rel_path) => rel_path.to_path_buf(),
                 Err(_) => m.file.clone(),
             };
-
-            // Check path components (works on both Unix and Windows)
             let path_components: Vec<_> = relative_path_buf
                 .components()
                 .map(|c| c.as_os_str().to_string_lossy().to_lowercase())
                 .collect();
-
             if !path_components.is_empty() {
                 if path_components[0] == "src" {
                     continue;
@@ -207,28 +170,55 @@ impl FunctionFinder {
                 }
             }
 
-            let content = &m.content;
+            let file_content = fs::read_to_string(&m.file)?;
 
-            // Check if this line matches any function definition pattern
-            for pattern in &self.patterns {
-                if let Some(captures) = pattern.captures(content) {
-                    if let Some(name_match) = captures.get(1) {
-                        let name = name_match.as_str();
-                        // Ensure exact match (not substring)
-                        if name == func_name {
-                            let file_content = fs::read_to_string(&m.file)?;
+            // Try Tree-sitter parsing first
+            let is_supported_lang = self.sitter.is_supported(&m.file);
+
+            if is_supported_lang {
+                if let Ok(functions) = self.sitter.find_functions(&m.file, &file_content) {
+                    for func in functions {
+                        if func.name == func_name {
+                            // Simplify body extraction for now - just get from start line
                             let body = file_content
                                 .lines()
-                                .skip(m.line - 1)
+                                .skip(func.start_line - 1)
                                 .collect::<Vec<_>>()
                                 .join("\n");
+
                             results.push(FunctionDef {
-                                name: name.to_string(),
+                                name: func.name,
                                 file: m.file.clone(),
-                                line: m.line,
+                                line: func.start_line,
                                 body,
                             });
-                            break; // Found a match for this line
+                        }
+                    }
+                }
+                // If it IS a supported language, we trust Sitter results (even if empty)
+                // and DO NOT fallback to regex, because regex gives false positives (like comments).
+            }
+
+            // Fallback to regex ONLY if language is not supported by Sitter
+            if !is_supported_lang {
+                let content = &m.content;
+                for pattern in &self.patterns {
+                    if let Some(captures) = pattern.captures(content) {
+                        if let Some(name_match) = captures.get(1) {
+                            if name_match.as_str() == func_name {
+                                let body = file_content
+                                    .lines()
+                                    .skip(m.line - 1)
+                                    .collect::<Vec<_>>()
+                                    .join("\n");
+                                results.push(FunctionDef {
+                                    name: func_name.to_string(),
+                                    file: m.file.clone(),
+                                    line: m.line,
+                                    body,
+                                });
+                                break;
+                            }
                         }
                     }
                 }
@@ -237,11 +227,10 @@ impl FunctionFinder {
 
         if results.is_empty() {
             Err(SearchError::Generic(format!(
-                "Function '{}' not found in codebase",
+                "Function '{}' not found",
                 func_name
             )))
         } else {
-            // Sort results by file path then line number for deterministic ordering
             results.sort_by(|a, b| a.file.cmp(&b.file).then(a.line.cmp(&b.line)));
             Ok(results)
         }

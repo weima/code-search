@@ -122,14 +122,18 @@ impl KeyExtractor {
             }
         }
 
-        // Print newline and summary if files were skipped
-        if skipped_files > 0 {
+        // Print newline and summary if files were skipped (only in verbose mode)
+        // Note: Skipped files are typically config files (package.json, tsconfig.json, etc.)
+        // that aren't translation files, which is expected behavior.
+        if skipped_files > 0 && self.verbose {
             eprintln!(); // Newline after the S indicators
             eprintln!(
-                "(Skipped {} invalid translation file{})",
+                "(Skipped {} non-translation file{})",
                 skipped_files,
                 if skipped_files == 1 { "" } else { "s" }
             );
+        } else if skipped_files > 0 {
+            eprintln!(); // Just newline, no message in non-verbose mode
         }
 
         Ok(matches)

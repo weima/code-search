@@ -91,7 +91,7 @@ fn test_find_callers_of_ruby_function() {
 
 #[test]
 fn test_function_finder_js() {
-    let finder = FunctionFinder::new(std::env::current_dir().unwrap());
+    let mut finder = FunctionFinder::new(std::env::current_dir().unwrap());
     let defs = finder.find_definition("processData").unwrap();
 
     assert!(!defs.is_empty());
@@ -101,7 +101,7 @@ fn test_function_finder_js() {
 
 #[test]
 fn test_function_finder_ruby() {
-    let finder = FunctionFinder::new(std::env::current_dir().unwrap());
+    let mut finder = FunctionFinder::new(std::env::current_dir().unwrap());
     let defs = finder.find_definition("process_order").unwrap();
 
     assert!(!defs.is_empty());

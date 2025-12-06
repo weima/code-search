@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use yaml_rust::scanner::{Scanner, TokenType};
-use yaml_rust::Yaml;
+use yaml_rust::{Yaml, YamlLoader};
 
 use super::translation::TranslationEntry;
 
@@ -16,9 +16,12 @@ impl YamlParser {
             SearchError::yaml_parse_error(path, format!("Failed to read file: {}", e))
         })?;
 
+        // Strip ERB templates to support Rails-style YAML fixtures
+        let cleaned_content = Self::strip_erb_templates(&content);
+
         // First, build a map of scalar values to their line numbers using Scanner
         let mut value_to_line: HashMap<String, usize> = HashMap::new();
-        let mut scanner = Scanner::new(content.chars());
+        let mut scanner = Scanner::new(cleaned_content.chars());
 
         loop {
             match scanner.next_token() {
@@ -34,7 +37,7 @@ impl YamlParser {
         }
 
         // Then, use YamlLoader to parse the structure
-        let docs = yaml_rust::YamlLoader::load_from_str(&content).map_err(|e| {
+        let docs = YamlLoader::load_from_str(&cleaned_content).map_err(|e| {
             SearchError::yaml_parse_error(path, format!("Invalid YAML syntax: {}", e))
         })?;
 
@@ -45,6 +48,48 @@ impl YamlParser {
         }
 
         Ok(entries)
+    }
+
+    /// Strip ERB templates (<%= ... %> and <% ... %>) from YAML
+    /// This enables parsing of Rails fixture files
+    fn strip_erb_templates(content: &str) -> String {
+        let mut result = String::with_capacity(content.len());
+        let mut chars = content.chars().peekable();
+
+        while let Some(ch) = chars.next() {
+            if ch == '<' {
+                if let Some(&'%') = chars.peek() {
+                    chars.next(); // consume '%'
+
+                    // Check for <%= or <%
+                    let _has_equals = if let Some(&'=') = chars.peek() {
+                        chars.next(); // consume '='
+                        true
+                    } else {
+                        false
+                    };
+
+                    // Skip until we find %>
+                    let mut prev = ' ';
+                    for c in chars.by_ref() {
+                        if prev == '%' && c == '>' {
+                            break;
+                        }
+                        if c == '\n' {
+                            result.push('\n'); // preserve newlines
+                        }
+                        prev = c;
+                    }
+
+                    // Replace ERB tag with empty string (already skipped)
+                    continue;
+                }
+            }
+
+            result.push(ch);
+        }
+
+        result
     }
 
     fn flatten_yaml(
