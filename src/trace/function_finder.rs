@@ -201,6 +201,11 @@ impl FunctionFinder {
 
             // Fallback to regex ONLY if language is not supported by Sitter
             if !is_supported_lang {
+                // Skip ERB files as they are not reliable with regex
+                if m.file.extension().is_some_and(|ext| ext == "erb") {
+                    continue;
+                }
+
                 let content = &m.content;
                 for pattern in &self.patterns {
                     if let Some(captures) = pattern.captures(content) {

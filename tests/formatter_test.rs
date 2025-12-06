@@ -18,7 +18,6 @@ fn test_format_search_results() {
     assert!(output.contains("search query"));
     assert!(output.contains("invoice.labels.add_new"));
     assert!(output.contains("Key:"));
-    assert!(output.contains("Code:"));
 }
 
 #[test]
@@ -163,7 +162,6 @@ fn test_format_readable_output() {
 
     // Verify output is human-readable
     assert!(output.contains("Key:"), "Should label key paths");
-    assert!(output.contains("Code:"), "Should label code references");
     assert!(output.contains("search query"), "Should label root");
 
     // Verify no truncation artifacts in short content

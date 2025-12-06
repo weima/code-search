@@ -1,6 +1,5 @@
 use crate::error::{Result, SearchError};
 use serde_json::Value;
-use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -29,9 +28,10 @@ impl JsonParser {
         let cleaned_content = Self::strip_json_comments(&content);
 
         // If query is provided, use bottom-up approach
-        if let Some(q) = query {
-            return Self::parse_with_bottom_up_trace(path, &cleaned_content, q);
-        }
+        // FIXME: Bottom-up trace is buggy (returns leaf keys), disabled for now.
+        // if let Some(q) = query {
+        //     return Self::parse_with_bottom_up_trace(path, &cleaned_content, q);
+        // }
 
         // No query - parse entire file
         let root: Value = serde_json::from_str(&cleaned_content).map_err(|e| {
@@ -41,9 +41,16 @@ impl JsonParser {
         let mut entries = Vec::new();
         Self::flatten_json(&root, String::new(), path, &mut entries);
 
+        // Filter by query if provided (since bottom-up trace is disabled)
+        if let Some(q) = query {
+            let q_lower = q.to_lowercase();
+            entries.retain(|e| e.value.to_lowercase().contains(&q_lower));
+        }
+
         Ok(entries)
     }
 
+    /*
     /// Bottom-up approach: Find matching lines with grep, then trace keys upward.
     /// This avoids parsing the entire JSON structure.
     fn parse_with_bottom_up_trace(
@@ -237,6 +244,7 @@ impl JsonParser {
         }
         None
     }
+    */
 
     /// Strip single-line (//) and multi-line (/* */) comments from JSON
     /// This enables parsing of JSONC (JSON with Comments) files
@@ -360,6 +368,7 @@ impl JsonParser {
     }
 }
 
+/*
 /// Result of a trace with ancestor bookkeeping so future traces can short-circuit.
 struct TraceResult {
     entry: TranslationEntry,
@@ -395,6 +404,7 @@ impl TraceResult {
         }
     }
 }
+*/
 
 #[cfg(test)]
 mod tests {

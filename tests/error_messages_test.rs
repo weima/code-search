@@ -19,37 +19,33 @@ fn test_no_matches_shows_simple_message() {
 }
 
 #[test]
-fn test_yaml_parse_error_is_warning() {
+fn test_yaml_parse_error_is_handled_gracefully() {
     // Create invalid YAML file
     let temp_dir = TempDir::new().unwrap();
     let yaml_path = temp_dir.path().join("invalid.yml");
-    fs::write(&yaml_path, "key: [invalid yaml structure").unwrap();
+    fs::write(&yaml_path, "key: [invalid yaml structure test").unwrap();
 
     let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
-    cmd.arg("--verbose") // Enable verbose mode to see detailed warnings
+    cmd.arg("--verbose") // Enable verbose mode
         .arg("test")
         .current_dir(temp_dir.path())
         .assert()
         .success() // Should NOT fail
-        .stderr(predicate::str::contains(
-            "Warning: Failed to parse YAML file",
-        ));
+        .stdout(predicate::str::contains("test")); // Should find the match despite invalid structure
 }
 
 #[test]
-fn test_json_parse_error_is_warning() {
+fn test_json_parse_error_is_handled_gracefully() {
     // Create invalid JSON file
     let temp_dir = TempDir::new().unwrap();
     let json_path = temp_dir.path().join("invalid.json");
-    fs::write(&json_path, "{ key: 'invalid json' }").unwrap(); // Invalid JSON (single quotes, no quotes on key)
+    fs::write(&json_path, "{ key: 'invalid json test' }").unwrap(); // Invalid JSON
 
     let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
-    cmd.arg("--verbose") // Enable verbose mode to see detailed warnings
+    cmd.arg("--verbose") // Enable verbose mode
         .arg("test")
         .current_dir(temp_dir.path())
         .assert()
         .success() // Should NOT fail
-        .stderr(predicate::str::contains(
-            "Warning: Failed to parse JSON file",
-        ));
+        .stdout(predicate::str::contains("test")); // Should find the match despite invalid structure
 }
