@@ -76,6 +76,10 @@ struct Cli {
     /// Show verbose output including detailed parse error messages
     #[arg(long)]
     verbose: bool,
+
+    /// Output in simple, machine-readable format (file:line:content)
+    #[arg(short = 's', long)]
+    simple: bool,
 }
 
 /// Validate that depth is between 1 and 10
@@ -129,9 +133,16 @@ fn main() {
 
         match cs::run_trace(query) {
             Ok(Some(tree)) => {
-                let formatter = cs::TreeFormatter::new().with_search_query(cli.search_text.clone());
-                let output = formatter.format_trace_tree(&tree, direction);
-                print!("{}", output);
+                if cli.simple {
+                    let formatter = cs::SimpleFormatter::new();
+                    let output = formatter.format_trace_tree(&tree, direction);
+                    print!("{}", output);
+                } else {
+                    let formatter =
+                        cs::TreeFormatter::new().with_search_query(cli.search_text.clone());
+                    let output = formatter.format_trace_tree(&tree, direction);
+                    print!("{}", output);
+                }
             }
             Ok(None) => {
                 eprintln!(
@@ -257,11 +268,17 @@ fn main() {
                     } else {
                         // Show content search results
                         if has_content_results {
-                            let tree = cs::ReferenceTreeBuilder::build(&result);
-                            let formatter =
-                                cs::TreeFormatter::new().with_search_query(cli.search_text.clone());
-                            let output = formatter.format(&tree);
-                            println!("{}", output);
+                            if cli.simple {
+                                let formatter = cs::SimpleFormatter::new();
+                                let output = formatter.format(&result);
+                                print!("{}", output);
+                            } else {
+                                let tree = cs::ReferenceTreeBuilder::build(&result);
+                                let formatter = cs::TreeFormatter::new()
+                                    .with_search_query(cli.search_text.clone());
+                                let output = formatter.format(&tree);
+                                println!("{}", output);
+                            }
                         }
 
                         // Show file search results

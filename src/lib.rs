@@ -11,6 +11,7 @@ use std::path::PathBuf;
 // Re-export commonly used types
 pub use config::default_patterns;
 pub use error::{Result, SearchError};
+pub use output::SimpleFormatter;
 pub use output::TreeFormatter;
 pub use parse::{KeyExtractor, TranslationEntry, YamlParser};
 pub use search::{CodeReference, FileMatch, FileSearcher, Match, PatternMatcher, TextSearcher};
