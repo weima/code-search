@@ -92,6 +92,9 @@ fn validate_depth(s: &str) -> Result<usize, String> {
 }
 
 fn main() {
+    // Enable colored output (override TTY detection)
+    colored::control::set_override(true);
+
     let cli = Cli::parse();
 
     // Validate search text is non-empty
@@ -126,7 +129,7 @@ fn main() {
 
         match cs::run_trace(query) {
             Ok(Some(tree)) => {
-                let formatter = cs::TreeFormatter::new();
+                let formatter = cs::TreeFormatter::new().with_search_query(cli.search_text.clone());
                 let output = formatter.format_trace_tree(&tree, direction);
                 print!("{}", output);
             }
@@ -255,7 +258,8 @@ fn main() {
                         // Show content search results
                         if has_content_results {
                             let tree = cs::ReferenceTreeBuilder::build(&result);
-                            let formatter = cs::TreeFormatter::new();
+                            let formatter =
+                                cs::TreeFormatter::new().with_search_query(cli.search_text.clone());
                             let output = formatter.format(&tree);
                             println!("{}", output);
                         }

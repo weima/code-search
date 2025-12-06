@@ -7,19 +7,30 @@ use regex::RegexBuilder;
 /// Formatter for rendering reference trees as text
 pub struct TreeFormatter {
     max_width: usize,
+    search_query: String,
 }
 
 impl TreeFormatter {
     /// Create a new TreeFormatter with default width (80 columns)
     pub fn new() -> Self {
-        // Force color output even when not in a TTY
-
-        Self { max_width: 80 }
+        Self {
+            max_width: 80,
+            search_query: String::new(),
+        }
     }
 
     /// Create a TreeFormatter with custom width
     pub fn with_width(max_width: usize) -> Self {
-        Self { max_width }
+        Self {
+            max_width,
+            search_query: String::new(),
+        }
+    }
+
+    /// Set the search query for highlighting
+    pub fn with_search_query(mut self, query: String) -> Self {
+        self.search_query = query;
+        self
     }
 
     /// Format a search result with clear sections
@@ -281,7 +292,14 @@ impl TreeFormatter {
                 // Truncate value if too long
                 let truncated_value = self.truncate(value, self.max_width - key.len() - 10);
 
-                format!("{}: '{}'", key.yellow().bold(), truncated_value.green())
+                // Highlight the search query in the value
+                let highlighted_value = if !self.search_query.is_empty() {
+                    self.highlight_key_in_context(&truncated_value, &self.search_query)
+                } else {
+                    truncated_value
+                };
+
+                format!("{}: '{}'", key.yellow().bold(), highlighted_value)
             }
             NodeType::KeyPath => {
                 format!("Key: {}", node.content)
