@@ -64,6 +64,16 @@ We will support rich, structured output formats (`--json`) to allow users to pip
 *   [ ] **Benchmarking**: Establish a baseline against `ripgrep` to measure and minimize overhead.
 *   [ ] **Profiling**: Identify and eliminate CPU hotspots.
 
+### Bottom-Up Trace Optimization
+
+We assume non-tangled translation trees: multiple matches for the same value appear in increasing line order, and their ancestors are shared or appear after earlier matches. The bottom-up tracers (YAML/JSON) now:
+
+* Walk matches in ascending line order.
+* Track ancestor prefixes by line number; later traces stop as soon as they hit a previously seen ancestor instead of climbing to the file start.
+* Respect a monotonic cutoff so we avoid re-walking earlier regions unless we reconnect to a known common parent.
+
+This preserves correctness (common parents still discovered) while reducing redundant upward scans on large files.
+
 ### Phase 3: The "Pro" Experience
 *   [ ] **Interactive TUI**: Implement the `cs -i` interactive mode.
 *   [ ] **Structured Output**: Full JSON output support for all commands.

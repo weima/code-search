@@ -13,7 +13,7 @@ use std::process;
 struct Cli {
     /// Text to search for (UI text, function names, variables, error messages, etc.)
     #[arg(value_name = "SEARCH_TEXT")]
-    search_text: String,
+    search_text: Option<String>,
 
     /// Path to search in (defaults to current directory)
     #[arg(value_name = "PATH")]
@@ -26,6 +26,18 @@ struct Cli {
     /// Additional file extensions to include in code reference search (e.g., "html.ui,vue.custom")
     #[arg(long, value_delimiter = ',')]
     include_extensions: Vec<String>,
+
+    /// Output in simple, machine-readable format (file:line:content)
+    #[arg(long)]
+    simple: bool,
+
+    /// Clear the search result cache
+    #[arg(long)]
+    clear_cache: bool,
+
+    /// Internal flag: run cache server
+    #[arg(long, hide = true)]
+    cache_server: bool,
 
     /// Include files matching glob pattern (e.g. "*.rs")
     #[arg(short = 'g', long = "glob")]
@@ -97,11 +109,60 @@ fn main() {
 
     let cli = Cli::parse();
 
-    // Validate search text is non-empty
-    if cli.search_text.trim().is_empty() {
+    // Hidden entrypoint: run cache server and exit
+    if cli.cache_server {
+        if let Err(e) = cs::SearchResultCache::start_server_blocking() {
+            eprintln!("Error starting cache server: {}", e);
+            process::exit(1);
+        }
+        return;
+    }
+
+    // Handle --clear-cache flag
+    if cli.clear_cache {
+        match cs::SearchResultCache::new() {
+            Ok(cache) => {
+                if let Err(e) = cache.clear() {
+                    eprintln!("Error clearing cache: {}", e);
+                    process::exit(1);
+                }
+                println!("Cache cleared successfully");
+                return;
+            }
+            Err(e) => {
+                eprintln!("Error accessing cache: {}", e);
+                process::exit(1);
+            }
+        }
+    }
+
+    // Validate search text is non-empty (unless clearing cache)
+    if !cli.clear_cache
+        && (cli.search_text.is_none() || cli.search_text.as_ref().unwrap().trim().is_empty())
+    {
         eprintln!("Error: search text cannot be empty");
         process::exit(1);
     }
+
+    let search_text = cli.search_text.clone().unwrap_or_default();
+
+    // Resolve base path: use CLI path when provided, otherwise current directory.
+    // If a file is provided, keep the file path for translation search but use its parent
+    // for project-type detection and file search defaults.
+    let raw_path = cli
+        .path
+        .as_ref()
+        .map(PathBuf::from)
+        .unwrap_or_else(|| env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+    let (base_dir, project_root) = if raw_path.is_file() {
+        let parent = raw_path
+            .parent()
+            .map(|p| p.to_path_buf())
+            .unwrap_or_else(|| PathBuf::from("."));
+        (raw_path, parent)
+    } else {
+        (raw_path.clone(), raw_path)
+    };
 
     // Determine operation mode
     let is_trace_mode = cli.trace || cli.traceback || cli.trace_all;
@@ -123,13 +184,13 @@ fn main() {
         } else {
             env::current_dir().unwrap_or_else(|_| Path::new(".").to_path_buf())
         };
-        let query = cs::TraceQuery::new(cli.search_text.clone(), direction.clone(), cli.depth)
+        let query = cs::TraceQuery::new(search_text.clone(), direction.clone(), cli.depth)
             .with_base_dir(base_dir)
             .with_exclusions(cli.exclude);
 
         match cs::run_trace(query) {
             Ok(Some(tree)) => {
-                let formatter = cs::TreeFormatter::new().with_search_query(cli.search_text.clone());
+                let formatter = cs::TreeFormatter::new().with_search_query(search_text.clone());
                 let output = formatter.format_trace_tree(&tree, direction);
                 print!("{}", output);
             }
@@ -137,7 +198,7 @@ fn main() {
                 eprintln!(
                     "{} Function '{}' not found in codebase",
                     "Error:".red().bold(),
-                    cli.search_text.bold()
+                    search_text.bold()
                 );
                 eprintln!();
                 eprintln!("{}", "Possible reasons:".yellow().bold());
@@ -148,7 +209,7 @@ fn main() {
                 eprintln!("{}", "Next steps:".green().bold());
                 eprintln!(
                     "  1. Verify function name: {}",
-                    format!("rg 'function {}'", cli.search_text).cyan()
+                    format!("rg 'function {}'", search_text).cyan()
                 );
                 eprintln!(
                     "  2. Check if you're in the right directory: {}",
@@ -156,7 +217,7 @@ fn main() {
                 );
                 eprintln!(
                     "  3. Search for similar function names: {}",
-                    format!("rg 'function.*{}'", cli.search_text).cyan()
+                    format!("rg 'function.*{}'", search_text).cyan()
                 );
                 process::exit(1);
             }
@@ -195,10 +256,8 @@ fn main() {
         }
     } else {
         // Use the new orchestrator and formatter for i18n search
-        let base_dir = env::current_dir().unwrap_or_else(|_| Path::new(".").to_path_buf());
-
         // Compute exclusions: Default (based on project type) + Manual (from CLI)
-        let project_type = cs::config::detect_project_type(&base_dir);
+        let project_type = cs::config::detect_project_type(&project_root);
         let mut exclusions: Vec<String> = cs::config::get_default_exclusions(project_type)
             .iter()
             .map(|&s| s.to_string())
@@ -216,31 +275,31 @@ fn main() {
             includes.push(pattern);
         }
 
-        let query = cs::SearchQuery::new(cli.search_text.clone())
+        let query = cs::SearchQuery::new(search_text.clone())
             .with_case_sensitive(cli.case_sensitive) // ignore_case is handled by overrides_with
             .with_word_match(cli.word_regexp)
             .with_regex(cli.regex)
             .with_base_dir(base_dir.clone())
             .with_exclusions(cli.exclude)
             .with_includes(includes)
-            .with_verbose(cli.verbose);
+            .with_verbose(cli.verbose)
+            .with_quiet(cli.simple);
 
         // Perform file search
-        let file_searcher = cs::FileSearcher::new(base_dir.clone())
+        let file_searcher = cs::FileSearcher::new(project_root.clone())
             .case_sensitive(cli.case_sensitive)
             .add_exclusions(exclusions.clone());
-        let file_matches = file_searcher.search(&cli.search_text).unwrap_or_default();
+        let file_matches = file_searcher.search(&search_text).unwrap_or_default();
 
         // If --file-only, skip content search
         if cli.file_only {
             if file_matches.is_empty() {
-                println!("No files found matching '{}'", cli.search_text);
+                println!("No files found matching '{}'", search_text);
             } else {
-                println!("Files matching '{}':", cli.search_text.bold());
+                println!("Files matching '{}':", search_text.bold());
                 for file_match in &file_matches {
                     let path_str = file_match.path.display().to_string();
-                    let highlighted =
-                        highlight_match(&path_str, &cli.search_text, cli.case_sensitive);
+                    let highlighted = highlight_match(&path_str, &search_text, cli.case_sensitive);
                     println!("  {}", highlighted);
                 }
             }
@@ -253,13 +312,13 @@ fn main() {
                     let has_file_results = !file_matches.is_empty();
 
                     if !has_content_results && !has_file_results {
-                        println!("No matches found for '{}'", cli.search_text);
+                        println!("No matches found for '{}'", search_text);
                     } else {
                         // Show content search results
                         if has_content_results {
                             let tree = cs::ReferenceTreeBuilder::build(&result);
                             let formatter =
-                                cs::TreeFormatter::new().with_search_query(cli.search_text.clone());
+                                cs::TreeFormatter::new().with_search_query(search_text.clone());
                             let output = formatter.format(&tree);
                             println!("{}", output);
                         }
@@ -269,14 +328,11 @@ fn main() {
                             if has_content_results {
                                 println!(); // Add spacing between sections
                             }
-                            println!("Files matching '{}':", cli.search_text.bold());
+                            println!("Files matching '{}':", search_text.bold());
                             for file_match in &file_matches {
                                 let path_str = file_match.path.display().to_string();
-                                let highlighted = highlight_match(
-                                    &path_str,
-                                    &cli.search_text,
-                                    cli.case_sensitive,
-                                );
+                                let highlighted =
+                                    highlight_match(&path_str, &search_text, cli.case_sensitive);
                                 println!("  {}", highlighted);
                             }
                         }

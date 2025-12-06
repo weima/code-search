@@ -1,3 +1,4 @@
+pub mod cache;
 pub mod config;
 pub mod error;
 pub mod output;
@@ -9,6 +10,7 @@ pub mod tree;
 use std::path::PathBuf;
 
 // Re-export commonly used types
+pub use cache::SearchResultCache;
 pub use config::default_patterns;
 pub use error::{Result, SearchError};
 pub use output::TreeFormatter;
@@ -63,6 +65,7 @@ pub struct SearchQuery {
     pub exclude_patterns: Vec<String>,
     pub include_patterns: Vec<String>,
     pub verbose: bool,
+    pub quiet: bool, // Suppress progress indicators (for --simple mode)
 }
 
 impl SearchQuery {
@@ -76,6 +79,7 @@ impl SearchQuery {
             exclude_patterns: Vec::new(),
             include_patterns: Vec::new(),
             verbose: false,
+            quiet: false,
         }
     }
 
@@ -111,6 +115,11 @@ impl SearchQuery {
 
     pub fn with_verbose(mut self, verbose: bool) -> Self {
         self.verbose = verbose;
+        self
+    }
+
+    pub fn with_quiet(mut self, quiet: bool) -> Self {
+        self.quiet = quiet;
         self
     }
 }
@@ -149,6 +158,7 @@ pub fn run_search(query: SearchQuery) -> Result<SearchResult> {
     let mut extractor = KeyExtractor::new();
     extractor.set_exclusions(exclusions.clone());
     extractor.set_verbose(query.verbose);
+    extractor.set_quiet(query.quiet);
     let translation_entries = extractor.extract(&base_dir, &query.text)?;
 
     // Step 2: Find code references for each translation entry

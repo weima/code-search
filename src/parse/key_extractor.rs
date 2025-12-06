@@ -1,5 +1,6 @@
 // src/parse/key_extractor.rs
 
+use crate::cache::SearchResultCache;
 use crate::error::Result;
 use std::path::Path;
 use walkdir::WalkDir;
@@ -14,6 +15,8 @@ use super::yaml_parser::YamlParser;
 pub struct KeyExtractor {
     exclusions: Vec<String>,
     verbose: bool,
+    quiet: bool, // Suppress progress indicators (for --simple mode)
+    cache: Option<SearchResultCache>,
 }
 
 impl Default for KeyExtractor {
@@ -25,9 +28,12 @@ impl Default for KeyExtractor {
 impl KeyExtractor {
     /// Create a new `KeyExtractor`.
     pub fn new() -> Self {
+        let cache = SearchResultCache::new().ok(); // Silently disable cache on error
         Self {
             exclusions: Vec::new(),
             verbose: false,
+            quiet: false,
+            cache,
         }
     }
 
@@ -39,6 +45,11 @@ impl KeyExtractor {
     /// Set verbose mode for detailed error messages
     pub fn set_verbose(&mut self, verbose: bool) {
         self.verbose = verbose;
+    }
+
+    /// Set quiet mode to suppress progress indicators
+    pub fn set_quiet(&mut self, quiet: bool) {
+        self.quiet = quiet;
     }
 
     /// Recursively walk `base_dir` for `*.yml` (or `*.yaml`) files, parse each,
@@ -71,51 +82,180 @@ impl KeyExtractor {
             if let Some(ext) = path.extension() {
                 let ext_str = ext.to_string_lossy();
                 if ext_str == "yml" || ext_str == "yaml" {
-                    match YamlParser::parse_file(path) {
-                        Ok(entries) => {
+                    // OPTIMIZATION: Use ripgrep to pre-filter files before parsing
+                    // This avoids expensive YAML parsing for files without matches
+                    match YamlParser::contains_query(path, query) {
+                        Ok(false) => {
+                            // No match in file, skip it entirely
+                            if !self.quiet {
+                                use colored::Colorize;
+                                eprint!("{}", "-".dimmed()); // Skipped (no match)
+                            }
+                            continue;
+                        }
+                        Err(_e) => {
+                            // ripgrep failed, fall back to full parsing
+                            // (don't skip the file, just proceed with parsing)
+                        }
+                        Ok(true) => {
+                            // Match found, proceed with parsing below
+                        }
+                    }
+
+                    // Try cache first
+                    let metadata = std::fs::metadata(path).ok();
+                    let cached_results = if let (Some(cache), Some(meta)) = (&self.cache, metadata)
+                    {
+                        let mtime = meta.modified().ok();
+                        let size = meta.len();
+                        if let Some(mt) = mtime {
+                            cache.get(path, query, false, mt, size)
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    };
+
+                    let all_entries = if let Some(cached) = cached_results {
+                        if !self.quiet {
                             use colored::Colorize;
-                            eprint!("{}", ".".green()); // Successfully parsed
-                            for e in entries {
-                                if e.value.to_lowercase().contains(&lowered) {
-                                    matches.push(e);
+                            eprint!("{}", "C".cyan()); // Cache hit!
+                        } else {
+                            eprintln!("[cache] hit {} (yaml)", path.display());
+                        }
+                        cached
+                    } else {
+                        // Cache miss - parse file with query for optimization
+                        match YamlParser::parse_file_with_query(path, Some(query)) {
+                            Ok(entries) => {
+                                if !self.quiet {
+                                    use colored::Colorize;
+                                    eprint!("{}", ".".green()); // Successfully parsed
                                 }
+
+                                // Store in cache
+                                if let (Some(cache), Ok(meta)) =
+                                    (&self.cache, std::fs::metadata(path))
+                                {
+                                    if let (Ok(mtime), size) = (meta.modified(), meta.len()) {
+                                        let _ =
+                                            cache.set(path, query, false, mtime, size, &entries);
+                                    }
+                                }
+
+                                entries
+                            }
+                            Err(e) => {
+                                skipped_files += 1;
+                                if !self.quiet {
+                                    use colored::Colorize;
+                                    eprint!("{}", "S".yellow()); // Skipped due to parse error
+                                }
+                                if self.verbose {
+                                    eprintln!(
+                                        "\nWarning: Failed to parse YAML file {}: {}",
+                                        path.display(),
+                                        e
+                                    );
+                                }
+                                continue;
                             }
                         }
-                        Err(e) => {
-                            use colored::Colorize;
-                            skipped_files += 1;
-                            eprint!("{}", "S".yellow()); // Skipped due to parse error
-                            if self.verbose {
-                                eprintln!(
-                                    "\nWarning: Failed to parse YAML file {}: {}",
-                                    path.display(),
-                                    e
-                                );
-                            }
+                    };
+
+                    // Filter for matching entries
+                    for e in all_entries {
+                        if e.value.to_lowercase().contains(&lowered) {
+                            matches.push(e);
                         }
                     }
                 } else if ext_str == "json" {
-                    match JsonParser::parse_file(path) {
-                        Ok(entries) => {
+                    // OPTIMIZATION: Use ripgrep to pre-filter files before parsing
+                    // Note: We don't have a contains_query for JSON yet, so we use YAML's
+                    match YamlParser::contains_query(path, query) {
+                        Ok(false) => {
+                            // No match in file, skip it entirely
+                            if !self.quiet {
+                                use colored::Colorize;
+                                eprint!("{}", "-".dimmed()); // Skipped (no match)
+                            }
+                            continue;
+                        }
+                        Err(_e) => {
+                            // ripgrep failed, fall back to full parsing
+                        }
+                        Ok(true) => {
+                            // Match found, proceed with parsing below
+                        }
+                    }
+
+                    // Try cache first
+                    let metadata = std::fs::metadata(path).ok();
+                    let cached_results = if let (Some(cache), Some(meta)) = (&self.cache, metadata)
+                    {
+                        let mtime = meta.modified().ok();
+                        let size = meta.len();
+                        if let Some(mt) = mtime {
+                            cache.get(path, query, false, mt, size)
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    };
+
+                    let all_entries = if let Some(cached) = cached_results {
+                        if !self.quiet {
                             use colored::Colorize;
-                            eprint!("{}", ".".green()); // Successfully parsed
-                            for e in entries {
-                                if e.value.to_lowercase().contains(&lowered) {
-                                    matches.push(e);
+                            eprint!("{}", "C".cyan()); // Cache hit!
+                        } else {
+                            eprintln!("[cache] hit {} (json)", path.display());
+                        }
+                        cached
+                    } else {
+                        // Cache miss - parse file with query for optimization
+                        match JsonParser::parse_file_with_query(path, Some(query)) {
+                            Ok(entries) => {
+                                if !self.quiet {
+                                    use colored::Colorize;
+                                    eprint!("{}", ".".green()); // Successfully parsed
                                 }
+
+                                // Store in cache
+                                if let (Some(cache), Ok(meta)) =
+                                    (&self.cache, std::fs::metadata(path))
+                                {
+                                    if let (Ok(mtime), size) = (meta.modified(), meta.len()) {
+                                        let _ =
+                                            cache.set(path, query, false, mtime, size, &entries);
+                                    }
+                                }
+
+                                entries
+                            }
+                            Err(e) => {
+                                skipped_files += 1;
+                                if !self.quiet {
+                                    use colored::Colorize;
+                                    eprint!("{}", "S".yellow()); // Skipped due to parse error
+                                }
+                                if self.verbose {
+                                    eprintln!(
+                                        "\nWarning: Failed to parse JSON file {}: {}",
+                                        path.display(),
+                                        e
+                                    );
+                                }
+                                continue;
                             }
                         }
-                        Err(e) => {
-                            use colored::Colorize;
-                            skipped_files += 1;
-                            eprint!("{}", "S".yellow()); // Skipped due to parse error
-                            if self.verbose {
-                                eprintln!(
-                                    "\nWarning: Failed to parse JSON file {}: {}",
-                                    path.display(),
-                                    e
-                                );
-                            }
+                    };
+
+                    // Filter for matching entries
+                    for e in all_entries {
+                        if e.value.to_lowercase().contains(&lowered) {
+                            matches.push(e);
                         }
                     }
                 }
@@ -125,15 +265,17 @@ impl KeyExtractor {
         // Print newline and summary if files were skipped (only in verbose mode)
         // Note: Skipped files are typically config files (package.json, tsconfig.json, etc.)
         // that aren't translation files, which is expected behavior.
-        if skipped_files > 0 && self.verbose {
-            eprintln!(); // Newline after the S indicators
-            eprintln!(
-                "(Skipped {} non-translation file{})",
-                skipped_files,
-                if skipped_files == 1 { "" } else { "s" }
-            );
-        } else if skipped_files > 0 {
-            eprintln!(); // Just newline, no message in non-verbose mode
+        if !self.quiet {
+            if skipped_files > 0 && self.verbose {
+                eprintln!(); // Newline after the S indicators
+                eprintln!(
+                    "(Skipped {} non-translation file{})",
+                    skipped_files,
+                    if skipped_files == 1 { "" } else { "s" }
+                );
+            } else if skipped_files > 0 {
+                eprintln!(); // Just newline, no message in non-verbose mode
+            }
         }
 
         Ok(matches)
