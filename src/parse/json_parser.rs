@@ -14,7 +14,11 @@ impl JsonParser {
             SearchError::json_parse_error(path, format!("Failed to read file: {}", e))
         })?;
 
-        let root: Value = serde_json::from_str(&content).map_err(|e| {
+        // Strip comments to support JSONC (JSON with Comments) format
+        // This is commonly used in tsconfig.json and other config files
+        let cleaned_content = Self::strip_json_comments(&content);
+
+        let root: Value = serde_json::from_str(&cleaned_content).map_err(|e| {
             SearchError::json_parse_error(path, format!("Invalid JSON syntax: {}", e))
         })?;
 
@@ -22,6 +26,69 @@ impl JsonParser {
         Self::flatten_json(&root, String::new(), path, &mut entries);
 
         Ok(entries)
+    }
+
+    /// Strip single-line (//) and multi-line (/* */) comments from JSON
+    /// This enables parsing of JSONC (JSON with Comments) files
+    fn strip_json_comments(content: &str) -> String {
+        let mut result = String::with_capacity(content.len());
+        let mut chars = content.chars().peekable();
+        let mut in_string = false;
+        let mut escape_next = false;
+
+        while let Some(ch) = chars.next() {
+            if escape_next {
+                result.push(ch);
+                escape_next = false;
+                continue;
+            }
+
+            if ch == '\\' && in_string {
+                result.push(ch);
+                escape_next = true;
+                continue;
+            }
+
+            if ch == '"' {
+                in_string = !in_string;
+                result.push(ch);
+                continue;
+            }
+
+            if !in_string && ch == '/' {
+                if let Some(&next_ch) = chars.peek() {
+                    if next_ch == '/' {
+                        // Single-line comment - skip until newline
+                        chars.next(); // consume second '/'
+                        for c in chars.by_ref() {
+                            if c == '\n' {
+                                result.push('\n'); // preserve newline for line counting
+                                break;
+                            }
+                        }
+                        continue;
+                    } else if next_ch == '*' {
+                        // Multi-line comment - skip until */
+                        chars.next(); // consume '*'
+                        let mut prev = ' ';
+                        for c in chars.by_ref() {
+                            if prev == '*' && c == '/' {
+                                break;
+                            }
+                            if c == '\n' {
+                                result.push('\n'); // preserve newlines
+                            }
+                            prev = c;
+                        }
+                        continue;
+                    }
+                }
+            }
+
+            result.push(ch);
+        }
+
+        result
     }
 
     fn flatten_json(

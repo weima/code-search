@@ -243,10 +243,11 @@ pub fn run_trace(query: TraceQuery) -> Result<Option<CallTree>> {
         .clone()
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
 
-    let finder = FunctionFinder::new(base_dir.clone());
+    let mut finder = FunctionFinder::new(base_dir.clone());
     if let Some(start_fn) = finder.find_function(&query.function_name) {
         let extractor = CallExtractor::new(base_dir);
-        let builder = CallGraphBuilder::new(query.direction, query.max_depth, &finder, &extractor);
+        let mut builder =
+            CallGraphBuilder::new(query.direction, query.max_depth, &mut finder, &extractor);
         builder.build_trace(&start_fn)
     } else {
         Ok(None)

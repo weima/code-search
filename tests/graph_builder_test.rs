@@ -12,11 +12,12 @@ fn setup_finder_and_extractor() -> (FunctionFinder, CallExtractor) {
 
 #[test]
 fn test_build_simple_trace_tree() {
-    let (finder, extractor) = setup_finder_and_extractor();
+    let (mut finder, extractor) = setup_finder_and_extractor();
     let start_fn_name = "checkout";
 
     if let Some(start_fn) = finder.find_function(start_fn_name) {
-        let builder = CallGraphBuilder::new(TraceDirection::Forward, 3, &finder, &extractor);
+        let mut builder =
+            CallGraphBuilder::new(TraceDirection::Forward, 3, &mut finder, &extractor);
         let result = builder.build_trace(&start_fn);
 
         assert!(result.is_ok());
@@ -45,11 +46,12 @@ fn test_build_simple_trace_tree() {
 
 #[test]
 fn test_backward_trace_tree() {
-    let (finder, extractor) = setup_finder_and_extractor();
+    let (mut finder, extractor) = setup_finder_and_extractor();
     let start_fn_name = "calculateTotal";
 
     if let Some(start_fn) = finder.find_function(start_fn_name) {
-        let builder = CallGraphBuilder::new(TraceDirection::Backward, 2, &finder, &extractor);
+        let mut builder =
+            CallGraphBuilder::new(TraceDirection::Backward, 2, &mut finder, &extractor);
         let result = builder.build_trace(&start_fn);
 
         assert!(result.is_ok());
@@ -66,7 +68,7 @@ fn test_backward_trace_tree() {
 
 #[test]
 fn test_depth_limit() {
-    let (finder, extractor) = setup_finder_and_extractor();
+    let (mut finder, extractor) = setup_finder_and_extractor();
 
     // Create a test function manually
     use cs::trace::FunctionDef;
@@ -77,7 +79,7 @@ fn test_depth_limit() {
         body: "function testFunction() { return 42; }".to_string(),
     };
 
-    let builder = CallGraphBuilder::new(TraceDirection::Forward, 1, &finder, &extractor);
+    let mut builder = CallGraphBuilder::new(TraceDirection::Forward, 1, &mut finder, &extractor);
     let result = builder.build_trace(&test_fn);
 
     assert!(result.is_ok());
@@ -91,7 +93,7 @@ fn test_depth_limit() {
 
 #[test]
 fn test_cycle_detection() {
-    let (finder, extractor) = setup_finder_and_extractor();
+    let (mut finder, extractor) = setup_finder_and_extractor();
 
     // Test with any function that might exist
     use cs::trace::FunctionDef;
@@ -102,7 +104,7 @@ fn test_cycle_detection() {
         body: "function recursiveFunction() { return recursiveFunction(); }".to_string(),
     };
 
-    let builder = CallGraphBuilder::new(TraceDirection::Forward, 10, &finder, &extractor);
+    let mut builder = CallGraphBuilder::new(TraceDirection::Forward, 10, &mut finder, &extractor);
     let result = builder.build_trace(&recursive_fn);
 
     assert!(result.is_ok());
@@ -117,7 +119,7 @@ fn test_cycle_detection() {
 
 #[test]
 fn test_empty_function_handling() {
-    let (finder, extractor) = setup_finder_and_extractor();
+    let (mut finder, extractor) = setup_finder_and_extractor();
 
     use cs::trace::FunctionDef;
     let empty_fn = FunctionDef {
@@ -127,7 +129,7 @@ fn test_empty_function_handling() {
         body: "function emptyFunction() {}".to_string(),
     };
 
-    let builder = CallGraphBuilder::new(TraceDirection::Forward, 5, &finder, &extractor);
+    let mut builder = CallGraphBuilder::new(TraceDirection::Forward, 5, &mut finder, &extractor);
     let result = builder.build_trace(&empty_fn);
 
     assert!(result.is_ok());
