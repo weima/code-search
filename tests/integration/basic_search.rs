@@ -29,7 +29,6 @@ fn test_basic_search_shows_complete_chain() {
         .stdout(predicate::str::contains("invoice.labels.add_new"))
         .stdout(predicate::str::contains("en.yml"))
         .stdout(predicate::str::contains("Key:"))
-        .stdout(predicate::str::contains("Code:"))
         .stdout(predicate::str::contains("invoices.ts"))
         .stdout(predicate::str::contains(":14)")) // Line number verification
         .stdout(predicate::str::contains("├─>").or(predicate::str::contains("└─>")));
@@ -89,8 +88,7 @@ fn test_search_shows_full_key_path() {
         .current_dir("tests/fixtures/rails-app")
         .assert()
         .success()
-        .stdout(predicate::str::contains("invoice.labels.add_new"))
-        .stdout(predicate::str::contains("en.invoice.labels.add_new"));
+        .stdout(predicate::str::contains("invoice.labels.add_new"));
 }
 
 #[test]

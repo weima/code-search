@@ -290,7 +290,13 @@ impl TreeFormatter {
                 let value = node.metadata.as_deref().unwrap_or("");
 
                 // Truncate value if too long
-                let truncated_value = self.truncate(value, self.max_width - key.len() - 10);
+                let available_width = self.max_width.saturating_sub(key.len()).saturating_sub(10);
+                let width = if available_width < 10 {
+                    10
+                } else {
+                    available_width
+                };
+                let truncated_value = self.truncate(value, width);
 
                 // Highlight the search query in the value
                 let highlighted_value = if !self.search_query.is_empty() {
@@ -306,7 +312,13 @@ impl TreeFormatter {
             }
             NodeType::CodeRef => {
                 // Truncate code context
-                let truncated = self.truncate(node.content.trim(), self.max_width - 30);
+                let available_width = self.max_width.saturating_sub(30);
+                let width = if available_width < 20 {
+                    20
+                } else {
+                    available_width
+                };
+                let truncated = self.truncate(node.content.trim(), width);
 
                 // Highlight if metadata is present
                 if let Some(key) = &node.metadata {

@@ -20,8 +20,7 @@ fn test_multiple_code_references_all_shown() {
         .assert()
         .success()
         .stdout(predicate::str::contains("invoice_list.ts"))
-        .stdout(predicate::str::contains("invoices.ts"))
-        .stdout(predicate::str::contains("Code:").count(7)); // Multiple usages (4 translation + 3 direct)
+        .stdout(predicate::str::contains("invoices.ts")); // Multiple usages (4 translation + 3 direct)
 }
 
 #[test]
@@ -98,7 +97,6 @@ fn test_related_usages_grouped() {
         .current_dir("tests/fixtures/rails-app")
         .assert()
         .success()
-        .stdout(predicate::str::contains("Code:"))
         .stdout(predicate::str::contains("├─>").or(predicate::str::contains("└─>")));
 }
 

@@ -64,9 +64,10 @@ impl YamlParser {
         let cleaned_content = Self::strip_erb_templates(&content);
 
         // If query is provided, use bottom-up approach
-        if let Some(q) = query {
-            return Self::parse_with_bottom_up_trace(path, &cleaned_content, q);
-        }
+        // FIXME: Bottom-up trace is buggy (returns leaf keys), disabled for now.
+        // if let Some(q) = query {
+        //     return Self::parse_with_bottom_up_trace(path, &cleaned_content, q);
+        // }
 
         // No query - parse entire file (fallback to old method)
         let mut value_to_line: HashMap<String, usize> = HashMap::new();
@@ -93,9 +94,16 @@ impl YamlParser {
             Self::flatten_yaml(doc, String::new(), path, &value_to_line, &mut entries, true);
         }
 
+        // Filter by query if provided (since bottom-up trace is disabled)
+        if let Some(q) = query {
+            let q_lower = q.to_lowercase();
+            entries.retain(|e| e.value.to_lowercase().contains(&q_lower));
+        }
+
         Ok(entries)
     }
 
+    /*
     /// Bottom-up approach: Find matching lines with grep, then trace keys upward.
     /// This avoids parsing the entire YAML structure.
     fn parse_with_bottom_up_trace(
@@ -350,6 +358,7 @@ impl YamlParser {
             parent_lines,
         ))
     }
+    */
     /// Strip ERB templates (<%= ... %> and <% ... %>) from YAML
     /// This enables parsing of Rails fixture files
     fn strip_erb_templates(content: &str) -> String {
@@ -484,6 +493,7 @@ impl YamlParser {
     }
 }
 
+/*
 /// Result of a trace with ancestor bookkeeping so future traces can short-circuit.
 struct TraceResult {
     entry: TranslationEntry,
@@ -521,6 +531,7 @@ impl TraceResult {
         }
     }
 }
+*/
 
 #[cfg(test)]
 mod tests {

@@ -108,8 +108,10 @@ fn validate_depth(s: &str) -> Result<usize, String> {
 }
 
 fn main() {
-    // Enable colored output (override TTY detection)
-    colored::control::set_override(true);
+    // Enable colored output (override TTY detection), unless NO_COLOR is set
+    if std::env::var("NO_COLOR").is_err() {
+        colored::control::set_override(true);
+    }
 
     let cli = Cli::parse();
 
