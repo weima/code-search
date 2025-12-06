@@ -88,6 +88,10 @@ struct Cli {
     /// Show verbose output including detailed parse error messages
     #[arg(long)]
     verbose: bool,
+
+    /// Show all results with section headers (translation keys, code matches, file names)
+    #[arg(short = 'a', long = "all")]
+    search_all: bool,
 }
 
 /// Validate that depth is between 1 and 10
@@ -275,15 +279,20 @@ fn main() {
             includes.push(pattern);
         }
 
-        let query = cs::SearchQuery::new(search_text.clone())
+        let mut query = cs::SearchQuery::new(search_text.clone())
             .with_case_sensitive(cli.case_sensitive) // ignore_case is handled by overrides_with
             .with_word_match(cli.word_regexp)
             .with_regex(cli.regex)
             .with_base_dir(base_dir.clone())
             .with_exclusions(cli.exclude)
-            .with_includes(includes)
+            .with_includes(includes.clone())
             .with_verbose(cli.verbose)
             .with_quiet(cli.simple);
+
+        // If --all flag is set, also search for exact text matches in code
+        if cli.search_all {
+            query = query.with_includes(includes);
+        }
 
         // Perform file search
         let file_searcher = cs::FileSearcher::new(project_root.clone())
@@ -307,15 +316,71 @@ fn main() {
             // Perform content search
             match cs::run_search(query) {
                 Ok(result) => {
-                    let has_content_results = !result.translation_entries.is_empty()
-                        || !result.code_references.is_empty();
+                    let has_translation_results = !result.translation_entries.is_empty();
+                    let has_code_results = !result.code_references.is_empty();
                     let has_file_results = !file_matches.is_empty();
+                    let has_any_results =
+                        has_translation_results || has_code_results || has_file_results;
 
-                    if !has_content_results && !has_file_results {
+                    if !has_any_results {
                         println!("No matches found for '{}'", search_text);
+                    } else if cli.search_all {
+                        // --all flag: Show structured sections with headers
+                        println!("=== Search Results for '{}' ===\n", search_text.bold());
+
+                        // Section 1: Translation Entries
+                        println!("{}", "1. Translation Keys:".bold().cyan());
+                        if has_translation_results {
+                            let tree = cs::ReferenceTreeBuilder::build(&result);
+                            let formatter =
+                                cs::TreeFormatter::new().with_search_query(search_text.clone());
+                            let output = formatter.format(&tree);
+                            println!("{}", output);
+                        } else {
+                            println!("   {}", "No translation keys found".dimmed());
+                        }
+                        println!();
+
+                        // Section 2: Direct Code Matches
+                        println!("{}", "2. Code Matches:".bold().cyan());
+                        if has_code_results {
+                            let direct_matches: Vec<_> = result
+                                .code_references
+                                .iter()
+                                .filter(|r| r.key_path.is_empty())
+                                .collect();
+                            if !direct_matches.is_empty() {
+                                for code_ref in direct_matches {
+                                    println!(
+                                        "   {}:{}: {}",
+                                        code_ref.file.display().to_string().bright_blue(),
+                                        code_ref.line.to_string().yellow(),
+                                        code_ref.context.trim().dimmed()
+                                    );
+                                }
+                            } else {
+                                println!("   {}", "No direct code matches found".dimmed());
+                            }
+                        } else {
+                            println!("   {}", "No code matches found".dimmed());
+                        }
+                        println!();
+
+                        // Section 3: File Names
+                        println!("{}", "3. Matching Files:".bold().cyan());
+                        if has_file_results {
+                            for file_match in &file_matches {
+                                let path_str = file_match.path.display().to_string();
+                                let highlighted =
+                                    highlight_match(&path_str, &search_text, cli.case_sensitive);
+                                println!("   {}", highlighted);
+                            }
+                        } else {
+                            println!("   {}", "No matching file names found".dimmed());
+                        }
                     } else {
-                        // Show content search results
-                        if has_content_results {
+                        // Default behavior: Show only non-empty results
+                        if has_translation_results || has_code_results {
                             let tree = cs::ReferenceTreeBuilder::build(&result);
                             let formatter =
                                 cs::TreeFormatter::new().with_search_query(search_text.clone());
@@ -325,7 +390,7 @@ fn main() {
 
                         // Show file search results
                         if has_file_results {
-                            if has_content_results {
+                            if has_translation_results || has_code_results {
                                 println!(); // Add spacing between sections
                             }
                             println!("Files matching '{}':", search_text.bold());

@@ -309,13 +309,11 @@ impl TreeFormatter {
                 let truncated = self.truncate(node.content.trim(), self.max_width - 30);
 
                 // Highlight if metadata is present
-                let display_content = if let Some(key) = &node.metadata {
+                if let Some(key) = &node.metadata {
                     self.highlight_key_in_context(&truncated, key)
                 } else {
                     truncated
-                };
-
-                format!("Code: {}", display_content)
+                }
             }
         }
     }
@@ -417,7 +415,6 @@ mod tests {
         assert!(output.contains("'add new'"));
         assert!(output.contains("invoice.labels.add_new"));
         assert!(output.contains("Key:"));
-        assert!(output.contains("Code:"));
         assert!(output.contains("I18n.t"));
         assert!(output.contains("en.yml:4"));
         assert!(output.contains("invoices.ts:14"));
@@ -507,7 +504,6 @@ mod tests {
         );
         let content = formatter.format_content(&node);
 
-        assert!(content.contains("Code:"));
         assert!(content.contains("I18n.t"));
         // Should trim whitespace
         assert!(!content.starts_with("  "));
