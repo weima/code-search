@@ -1,7 +1,8 @@
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 /// Represents a single translation entry found in a file
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TranslationEntry {
     /// The full dot-notation key (e.g., "invoice.labels.add_new")
     pub key: String,

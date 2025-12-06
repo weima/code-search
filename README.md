@@ -234,14 +234,31 @@ Download the pre-compiled binary for your platform from [Releases](https://githu
 
 ## Usage
 
+### Basic Usage
+
 ```bash
 # i18n text tracing (default mode)
 cs "button text"
 
-# Forward call tracing
+# Search in specific directory
+cs "button text" /path/to/project
+
+# Case-sensitive search
+cs "ExactText" -s
+cs "ExactText" --case-sensitive
+
+# Case-insensitive search (explicit)
+cs "text" -i
+cs "text" --ignore-case
+```
+
+### Call Graph Tracing
+
+```bash
+# Forward call tracing (what does this function call?)
 cs "functionName" --trace
 
-# Backward call tracing  
+# Backward call tracing (who calls this function?)
 cs "functionName" --traceback
 
 # Both directions
@@ -249,14 +266,79 @@ cs "functionName" --trace-all
 
 # Custom depth (default: 3, max: 10)
 cs "functionName" --trace --depth 5
+```
 
-# Case-sensitive search
-cs "Text" --case-sensitive
+### Search Options
 
-# Include custom file extensions for code references
-cs "button text" --include-extensions html.ui,vue.custom,erb.rails
+```bash
+# Word boundary matching (whole words only)
+cs "function" -w
+cs "function" --word-regexp
 
-# Help
+# Regular expression search
+cs "fn \w+\(" --regex
+
+# Glob pattern filtering (search only in matching files)
+cs "text" -g "*.ts"
+cs "text" --glob "*.js" --glob "*.tsx"
+
+# Exclude patterns from search
+cs "text" --exclude test,spec,mock
+
+# Include custom file extensions
+cs "text" --include-extensions html.ui,vue.custom
+```
+
+### File Search
+
+```bash
+# Search for files by name only (skip content search)
+cs "filename" -f
+cs "filename" --file-only
+```
+
+### Cache Management
+
+```bash
+# Clear the search result cache
+cs --clear-cache
+```
+
+### Output Options
+
+```bash
+# Simple machine-readable output (no progress indicators)
+cs "text" --simple
+
+# Verbose output with detailed parse error messages
+cs "text" --verbose
+```
+
+### Examples
+
+```bash
+# Find UI text with custom file types
+cs "Add New" --include-extensions html.ui,erb.rails
+
+# Case-sensitive search excluding test files
+cs "ClassName" -s --exclude test,spec
+
+# Search TypeScript files only
+cs "interface" -g "*.ts"
+
+# Find function calls with regex
+cs "handleClick.*(" --regex -g "*.tsx"
+
+# Trace function calls to depth 5
+cs "processPayment" --trace --depth 5
+
+# Simple output for AI agents (no progress indicators)
+cs "error message" --simple
+```
+
+### Help
+
+```bash
 cs --help
 ```
 
