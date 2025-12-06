@@ -13,8 +13,8 @@ fn test_cli_displays_formatted_tree() {
         .stdout(predicate::str::contains("search query"))
         .stdout(predicate::str::contains("invoice.labels.add_new"))
         .stdout(predicate::str::contains("Key:"))
-        .stdout(predicate::str::contains("Code:"))
         .stdout(predicate::str::contains("en.yml"))
+        .stdout(predicate::str::contains("invoice_list.ts"))
         .stdout(predicate::str::contains("invoices.ts"));
 }
 
@@ -118,8 +118,9 @@ fn test_cli_multiple_code_references() {
         .stdout(predicate::str::contains("invoice_list.ts"))
         .stdout(predicate::str::contains("invoices.ts"))
         // Should show multiple code references (translation matches + direct matches)
-        // 4 translation matches + 3 direct matches = 7
-        .stdout(predicate::str::contains("Code:").count(7));
+        // 5 occurrences in invoice_list.ts (lines 12,22,29,34,43) + 2 in invoices.ts (12,14)
+        .stdout(predicate::str::contains("invoice_list.ts").count(5))
+        .stdout(predicate::str::contains("invoices.ts").count(2));
 }
 
 #[test]
