@@ -44,7 +44,7 @@ tree-sitter-typescript = "0.20.3"
 tree-sitter-python = "0.20.3"
 tree-sitter-ruby = "0.20.1"
 tree-sitter-c-sharp = "0.20.0"
-tree-sitter-embedded-template = "0.20.0"
+# tree-sitter-embedded-template = "0.20.0" # Temporarily disabled due to tree-sitter version conflict
 # Caching dependencies
 sled = "0.34"
 bincode = "1.3"
