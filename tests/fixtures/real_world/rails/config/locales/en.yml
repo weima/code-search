@@ -1,0 +1,6 @@
+en:
+  activation:
+    activated: "Your account has been activated! You can now log in."
+  site_setting_missing: "The site setting %{name} is missing."
+  avatar:
+    missing: "Avatar is missing"

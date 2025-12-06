@@ -641,10 +641,10 @@ mod tests {
         assert!(keys.contains(&"invoice.labels".to_string()));
 
         // Test key with only two segments
+        // Note: New logic skips single-segment suffixes (like "login") to avoid false positives
         let keys = generate_partial_keys("user.login");
-        assert_eq!(keys.len(), 3);
+        assert_eq!(keys.len(), 2);
         assert!(keys.contains(&"user.login".to_string()));
-        assert!(keys.contains(&"login".to_string()));
         assert!(keys.contains(&"user".to_string()));
 
         // Test single segment key (no partials generated)
@@ -654,9 +654,19 @@ mod tests {
 
         // Test deeply nested key
         let keys = generate_partial_keys("app.views.invoice.form.labels.add_new");
-        assert_eq!(keys.len(), 3);
+        // Should generate:
+        // 1. Full key
+        // 2. views.invoice.form.labels.add_new
+        // 3. invoice.form.labels.add_new
+        // 4. form.labels.add_new
+        // 5. labels.add_new
+        // 6. app.views.invoice.form.labels (without last)
+        assert_eq!(keys.len(), 6);
         assert!(keys.contains(&"app.views.invoice.form.labels.add_new".to_string()));
         assert!(keys.contains(&"views.invoice.form.labels.add_new".to_string()));
+        assert!(keys.contains(&"invoice.form.labels.add_new".to_string()));
+        assert!(keys.contains(&"form.labels.add_new".to_string()));
+        assert!(keys.contains(&"labels.add_new".to_string()));
         assert!(keys.contains(&"app.views.invoice.form.labels".to_string()));
     }
 }

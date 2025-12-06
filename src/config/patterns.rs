@@ -10,9 +10,9 @@ pub fn default_patterns() -> Vec<Regex> {
         Regex::new(r#"i18n\.t\(['"]([^'"]+)['"]\)"#).unwrap(),
         // Vue patterns
         Regex::new(r#"\$t\(['"]([^'"]+)['"]\)"#).unwrap(),
-        // React patterns (will be added in Task 4.1)
-        // Regex::new(r#"useTranslation\(\)\.t\(['"]([^'"]+)['"]\)"#).unwrap(),
-        // Regex::new(r#"<Trans\s+i18nKey=['"]([^'"]+)['"]"#).unwrap(),
+        // React Intl patterns
+        Regex::new(r#"id:\s*['"]([^'"]+)['"]"#).unwrap(), // defineMessages
+        Regex::new(r#"id=\s*['"]([^'"]+)['"]"#).unwrap(), // FormattedMessage props
     ]
 }
 
@@ -24,7 +24,8 @@ mod tests {
     fn test_patterns_compile() {
         let patterns = default_patterns();
         assert!(!patterns.is_empty());
-        assert_eq!(patterns.len(), 4);
+        // Updated to reflect added React Intl patterns
+        assert_eq!(patterns.len(), 6);
     }
 
     #[test]
