@@ -12,7 +12,7 @@ pub enum SupportedLanguage {
     TypeScript,
     Ruby,
     CSharp,
-    Erb,
+    // Erb, // Temporarily disabled due to tree-sitter version conflict
 }
 
 impl SupportedLanguage {
@@ -24,7 +24,7 @@ impl SupportedLanguage {
             "ts" | "tsx" => Some(Self::TypeScript),
             "rb" => Some(Self::Ruby),
             "cs" => Some(Self::CSharp),
-            "erb" => Some(Self::Erb),
+            // "erb" => Some(Self::Erb), // Temporarily disabled
             _ => None,
         }
     }
@@ -37,7 +37,7 @@ impl SupportedLanguage {
             Self::TypeScript => tree_sitter_typescript::language_typescript(),
             Self::Ruby => tree_sitter_ruby::language(),
             Self::CSharp => tree_sitter_c_sharp::language(),
-            Self::Erb => tree_sitter_embedded_template::language(),
+            // Self::Erb => tree_sitter_embedded_template::language(),
         }
     }
 }
@@ -100,8 +100,8 @@ impl Sitter {
                     (export_statement (function_declaration name: (identifier) @name))
                     (method_definition name: (property_identifier) @name)
                     (arrow_function) @arrow
-                    (variable_declarator 
-                        name: (identifier) @name 
+                    (variable_declarator
+                        name: (identifier) @name
                         value: (arrow_function))
                 "#
                 }
@@ -116,8 +116,7 @@ impl Sitter {
                     (method_declaration name: (identifier) @name)
                     (local_function_statement name: (identifier) @name)
                 "#
-                }
-                SupportedLanguage::Erb => "", // ERB usually doesn't define functions
+                } // SupportedLanguage::Erb => "", // ERB usually doesn't define functions
             };
 
             let query = Query::new(lang.language(), query_str)
