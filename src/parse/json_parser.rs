@@ -105,8 +105,58 @@ impl JsonParser {
         Ok(entries)
     }
 
+    /// Binary search for parent opening brace in JSON.
+    /// Returns (line_index, key) if found.
+    fn binary_search_parent_brace(
+        lines: &[&str],
+        end_line: usize,
+        cutoff_line: usize,
+        _ancestor_cache: &HashMap<usize, Vec<String>>,
+    ) -> Option<(usize, String)> {
+        let mut brace_depth = 0;
+
+        // First, calculate the brace depth at end_line
+        for i in ((end_line + 1)..lines.len()).take(1) {
+            for ch in lines[i].chars() {
+                match ch {
+                    '{' => brace_depth += 1,
+                    '}' => brace_depth -= 1,
+                    _ => {}
+                }
+            }
+        }
+
+        // Count braces from end_line backwards to know target depth
+        for i in (0..=end_line).rev() {
+            let line = lines[i];
+            for ch in line.chars() {
+                match ch {
+                    '}' => brace_depth += 1,
+                    '{' => brace_depth -= 1,
+                    _ => {}
+                }
+            }
+
+            // Found opening brace that increases nesting
+            if brace_depth > 0 && line.contains('{') {
+                let line_idx = i + 1;
+                if line_idx <= cutoff_line {
+                    return None; // Hit cutoff boundary
+                }
+
+                // Find the key before this brace
+                if let Some((key_line, key)) = Self::find_key_before_brace(&lines[..=i]) {
+                    return Some((key_line - 1, key)); // Return 0-indexed
+                }
+                return None;
+            }
+        }
+
+        None
+    }
+
     /// Trace the JSON key path from a specific line number bottom-up.
-    /// Uses brace/bracket nesting to walk up the tree without parsing the entire JSON structure.
+    /// Uses binary search to find parent braces efficiently.
     fn trace_key_from_line(
         lines: &[&str],
         line_num: usize,
@@ -133,65 +183,36 @@ impl JsonParser {
             .trim_matches('"')
             .to_string();
 
-        // Build the key path by walking up the JSON structure
+        // Build the key path by walking up the JSON structure using binary search
         let mut key_parts = vec![key_part.to_string()];
-        let mut brace_depth = 0;
-        let mut _bracket_depth = 0;
         let mut parent_lines: Vec<usize> = Vec::new();
+        let mut search_end = line_num - 1;
 
-        // Walk backwards through lines to find parent keys
-        for i in (0..line_num - 1).rev() {
-            let line_idx = i + 1; // convert to 1-based
-            let line = lines[i].trim();
+        // Find parents by binary searching for opening braces at decreasing depths
+        while let Some((parent_idx, parent_key)) =
+            Self::binary_search_parent_brace(lines, search_end, cutoff_line, ancestor_cache)
+        {
+            let line_idx = parent_idx + 1; // Convert to 1-based
 
-            // Stop early if we crossed earlier than the previous match unless we can reuse a prefix
-            if line_idx <= cutoff_line {
-                if let Some(prefix) = ancestor_cache.get(&line_idx) {
-                    let mut combined = prefix.clone();
-                    combined.extend(key_parts);
-                    return Some(TraceResult::new(
-                        combined,
-                        value,
-                        line_num,
-                        path,
-                        parent_lines,
-                    ));
-                }
-                break;
+            // Check if we hit cached ancestor
+            if let Some(prefix) = ancestor_cache.get(&line_idx) {
+                let mut combined = prefix.clone();
+                combined.extend(key_parts);
+                return Some(TraceResult::new(
+                    combined,
+                    value,
+                    line_num,
+                    path,
+                    parent_lines,
+                ));
             }
 
-            // Skip empty lines and comments
-            if line.is_empty() || line.starts_with("//") {
-                continue;
-            }
+            key_parts.insert(0, parent_key);
+            parent_lines.push(line_idx);
+            search_end = parent_idx; // Next search ends at this parent
 
-            // Count braces and brackets on this line
-            for ch in line.chars() {
-                match ch {
-                    '}' => brace_depth += 1,
-                    '{' => {
-                        brace_depth -= 1;
-                        // If we closed a brace and we're at depth 0, we found a parent
-                        if brace_depth < 0 {
-                            // Look for the key on this or previous lines
-                            if let Some((parent_line, parent_key)) =
-                                Self::find_key_before_brace(&lines[..=i])
-                            {
-                                key_parts.insert(0, parent_key);
-                                parent_lines.push(parent_line);
-                                brace_depth = 0; // Reset for next level
-                            }
-                        }
-                    }
-                    ']' => _bracket_depth += 1,
-                    '[' => _bracket_depth -= 1,
-                    _ => {}
-                }
-            }
-
-            // If we reached the root (outermost brace)
-            if brace_depth == -1 {
-                break;
+            if parent_idx == 0 {
+                break; // Reached root
             }
         }
 

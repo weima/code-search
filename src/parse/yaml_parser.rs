@@ -161,8 +161,96 @@ impl YamlParser {
         Ok(entries)
     }
 
+    /// Binary search for parent key with indent less than target_indent.
+    /// Returns (line_index, key, indent) if found.
+    /// Handles empty lines and comments by moving up one line.
+    fn binary_search_parent(
+        lines: &[&str],
+        end_line: usize,
+        target_indent: usize,
+        cutoff_line: usize,
+        _ancestor_cache: &HashMap<usize, Vec<String>>,
+    ) -> Option<(usize, String, usize)> {
+        let mut left = 0;
+        let mut right = end_line;
+        let mut best_match: Option<(usize, String, usize)> = None;
+
+        while left <= right {
+            let mid = (left + right) / 2;
+            let mut check_line = mid;
+
+            // Skip empty lines and comments by moving up
+            while check_line > 0 {
+                let line = lines[check_line];
+                if !line.trim().is_empty() && !line.trim().starts_with('#') {
+                    break;
+                }
+                check_line -= 1;
+            }
+
+            if check_line == 0 && (lines[0].trim().is_empty() || lines[0].trim().starts_with('#')) {
+                // Couldn't find valid line, search left half
+                if mid == 0 {
+                    break;
+                }
+                right = mid - 1;
+                continue;
+            }
+
+            let line = lines[check_line];
+            let line_indent = line.len() - line.trim_start().len();
+            let line_idx = check_line + 1; // Convert to 1-based
+
+            // Check if we hit cutoff line (ancestor cache boundary)
+            if line_idx <= cutoff_line {
+                // Stop searching in this region
+                if mid == 0 {
+                    break;
+                }
+                right = mid - 1;
+                continue;
+            }
+
+            // Check if this line has a key (contains ':')
+            if let Some(colon_pos) = line.find(':') {
+                let key = line[..colon_pos].trim().to_string();
+
+                if line_indent < target_indent {
+                    // Found a parent! But keep searching for the closest one
+                    best_match = Some((check_line, key, line_indent));
+                    // Search right half for closer parent
+                    left = mid + 1;
+                } else if line_indent >= target_indent {
+                    // Too indented or same level, search left half
+                    if mid == 0 {
+                        break;
+                    }
+                    right = mid - 1;
+                } else {
+                    // Exact match shouldn't happen, search left
+                    if mid == 0 {
+                        break;
+                    }
+                    right = mid - 1;
+                }
+            } else {
+                // No colon, not a key line, search left
+                if mid == 0 {
+                    break;
+                }
+                right = mid - 1;
+            }
+
+            if left > right {
+                break;
+            }
+        }
+
+        best_match
+    }
+
     /// Trace the YAML key path from a specific line number bottom-up.
-    /// Uses indentation to walk up the tree without parsing the entire YAML structure.
+    /// Uses binary search to find parents efficiently (O(log n) instead of O(n)).
     fn trace_key_from_line(
         lines: &[&str],
         line_num: usize,
@@ -198,20 +286,25 @@ impl YamlParser {
         // Get the indentation level of the target line
         let target_indent = target_line.len() - target_line.trim_start().len();
 
-        // Build the key path by walking up the tree
+        // Build the key path by walking up the tree using binary search
         let mut key_parts = vec![key_part.to_string()];
         let mut current_indent = target_indent;
         let mut parent_lines: Vec<usize> = Vec::new();
+        let mut search_end = line_num - 1; // Start searching from line before target
 
-        // Walk backwards through lines to find parent keys
-        // Start from line before target and go up to line 0
-        for i in (0..line_num - 1).rev() {
-            let line = lines[i];
+        // Find parents by binary searching for each indent level
+        while current_indent > 0 && search_end > 0 {
+            // Binary search for parent with indent < current_indent
+            if let Some((parent_idx, parent_key, parent_indent)) = Self::binary_search_parent(
+                lines,
+                search_end,
+                current_indent,
+                cutoff_line,
+                ancestor_cache,
+            ) {
+                let line_idx = parent_idx + 1; // Convert to 1-based
 
-            // If we've crossed into an earlier region than the previous match, only continue
-            // if we can attach to a known ancestor prefix; otherwise stop early.
-            let line_idx = i + 1; // convert to 1-based to align with matched line numbers
-            if line_idx <= cutoff_line {
+                // Check if we hit cached ancestor
                 if let Some(prefix) = ancestor_cache.get(&line_idx) {
                     let mut combined = prefix.clone();
                     combined.extend(key_parts);
@@ -223,41 +316,29 @@ impl YamlParser {
                         parent_lines,
                     ));
                 }
-                break;
-            }
 
-            // Skip empty lines and comments
-            if line.trim().is_empty() || line.trim().starts_with('#') {
-                continue;
-            }
-
-            let line_indent = line.len() - line.trim_start().len();
-
-            // Found a parent (less indented)
-            if line_indent < current_indent {
-                if let Some(colon_pos) = line.find(':') {
-                    let parent_key = line[..colon_pos].trim();
-
-                    // Skip locale root keys (en, fr, de, etc.)
-                    if line_indent == 0
-                        && (parent_key == "en"
-                            || parent_key == "fr"
-                            || parent_key == "de"
-                            || parent_key == "es"
-                            || parent_key == "ja"
-                            || parent_key == "zh")
-                    {
-                        break;
-                    }
-
-                    key_parts.insert(0, parent_key.to_string());
-                    parent_lines.push(line_idx);
-                    current_indent = line_indent;
-
-                    if line_indent == 0 {
-                        break; // Reached root
-                    }
+                // Skip locale root keys (en, fr, de, etc.)
+                if parent_indent == 0
+                    && (parent_key == "en"
+                        || parent_key == "fr"
+                        || parent_key == "de"
+                        || parent_key == "es"
+                        || parent_key == "ja"
+                        || parent_key == "zh")
+                {
+                    break;
                 }
+
+                key_parts.insert(0, parent_key);
+                parent_lines.push(line_idx);
+                current_indent = parent_indent;
+                search_end = parent_idx; // Next search ends at this parent
+
+                if parent_indent == 0 {
+                    break; // Reached root
+                }
+            } else {
+                break; // No more parents found
             }
         }
 
