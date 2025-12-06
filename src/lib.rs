@@ -206,7 +206,16 @@ pub fn run_search(query: SearchQuery) -> Result<SearchResult> {
     }
 
     // Deduplicate code references (in case same reference matches multiple key variations)
-    all_code_refs.sort_by(|a, b| a.file.cmp(&b.file).then(a.line.cmp(&b.line)));
+    // We prioritize "traced" matches (where key_path != query) over "direct" matches (where key_path == query)
+    // This ensures that if we have both for the same line, we keep the one that links to a translation key.
+    all_code_refs.sort_by(|a, b| {
+        a.file.cmp(&b.file).then(a.line.cmp(&b.line)).then_with(|| {
+            let a_is_direct = a.key_path == query.text;
+            let b_is_direct = b.key_path == query.text;
+            // We want traced (false) to come before direct (true) so it is kept by dedup
+            a_is_direct.cmp(&b_is_direct)
+        })
+    });
     all_code_refs.dedup_by(|a, b| a.file == b.file && a.line == b.line);
 
     Ok(SearchResult {
@@ -272,18 +281,24 @@ pub fn generate_partial_keys(full_key: &str) -> Vec<String> {
 
     // Only generate partial keys if we have at least 2 segments
     if segments.len() >= 2 {
-        // Generate key without first segment (e.g., "labels.add_new" from "invoice.labels.add_new")
-        // This matches patterns like: ns = I18n.t('invoice.labels'); ns.t('add_new')
-        if segments.len() > 1 {
-            let without_first = segments[1..].join(".");
-            keys.push(without_first);
+        // Generate all suffixes with at least 2 segments
+        // e.g. for "a.b.c.d":
+        // - "b.c.d" (skip 1)
+        // - "c.d"   (skip 2)
+        for i in 1..segments.len() {
+            if segments.len() - i >= 2 {
+                keys.push(segments[i..].join("."));
+            }
         }
 
         // Generate key without last segment (e.g., "invoice.labels" from "invoice.labels.add_new")
         // This matches patterns like: labels = I18n.t('invoice.labels'); labels.t('add_new')
         if segments.len() > 1 {
             let without_last = segments[..segments.len() - 1].join(".");
-            keys.push(without_last);
+            // Avoid duplicates if without_last happens to be one of the suffixes (unlikely but possible)
+            if !keys.contains(&without_last) {
+                keys.push(without_last);
+            }
         }
     }
 
