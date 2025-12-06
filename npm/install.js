@@ -7,7 +7,7 @@ const os = require('os');
 
 const PACKAGE_NAME = 'code-search-cli';
 const BINARY_NAME = 'cs';
-const VERSION = '0.2.2'; // TODO: Get this from package.json dynamically in the future
+const VERSION = '0.2.3'; // TODO: Get this from package.json dynamically in the future
 const REPO_URL = 'https://github.com/weima/code-search/releases/download';
 
 function getBinaryName() {
