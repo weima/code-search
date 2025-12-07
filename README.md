@@ -396,10 +396,10 @@ Test fixtures include real-world translation files from production projects (Rai
 
 Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
-For technical details and implementation plans, see:
-- [Spec](.specify/specs/code-search/spec.md)
-- [Plan](.specify/specs/code-search/plan.md)
-- [Tasks](.specify/specs/code-search/tasks.md)
+For technical implementation details, see:
+- [BOTTOM_UP_PARSING.md](BOTTOM_UP_PARSING.md) - Advanced optimization algorithm
+- [CACHING.md](CACHING.md) - Two-tier caching architecture
+- [STRATEGY.md](STRATEGY.md) - Project vision and roadmap
 
 ## License
 
