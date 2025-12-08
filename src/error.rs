@@ -1,7 +1,68 @@
+//! # Error Handling - Rust Book Chapter 9
+//!
+//! This module demonstrates custom error types and error handling patterns from
+//! [The Rust Book Chapter 9](https://doc.rust-lang.org/book/ch09-00-error-handling.html).
+//!
+//! ## Key Concepts Demonstrated
+//!
+//! 1. **Custom Error Types with `thiserror`** (Chapter 9.2)
+//!    - Using enums to represent different error conditions
+//!    - Adding context to errors with struct variants
+//!    - Automatic `Display` implementation via `#[error(...)]`
+//!
+//! 2. **Automatic Error Conversion with `#[from]`** (Chapter 9.2)
+//!    - The `#[from]` attribute implements `From<OtherError>` automatically
+//!    - Enables using `?` operator with different error types
+//!
+//! 3. **Type Alias for Results** (Chapter 9.2)
+//!    - Using `type Result<T> = std::result::Result<T, SearchError>`
+//!    - Makes function signatures cleaner
+//!
+//! 4. **Builder Methods with `impl Into<T>`** (Chapter 10.2)
+//!    - Accepting flexible input types that can convert to the target type
+//!    - Makes APIs more ergonomic
+//!
+//! ## Learning Notes
+//!
+//! The `thiserror` crate is industry standard for libraries because it:
+//! - Derives `std::error::Error` automatically
+//! - Generates helpful `Display` messages
+//! - Integrates seamlessly with the `?` operator
+//!
+//! Compare this to the book's manual error implementations to see how
+//! derive macros reduce boilerplate while maintaining full functionality.
+
 use std::path::PathBuf;
 use thiserror::Error;
 
-/// Custom error type for code search operations
+/// Custom error type for code search operations.
+///
+/// # Rust Book Reference
+///
+/// **Chapter 9.2: Recoverable Errors with Result**
+/// https://doc.rust-lang.org/book/ch09-02-recoverable-errors-with-result.html
+///
+/// This demonstrates defining custom error types using an enum, which allows
+/// representing multiple kinds of errors with different associated data.
+///
+/// # Educational Notes
+///
+/// ## Why use an enum for errors?
+/// - Each variant can carry different data (strings, paths, numbers)
+/// - Pattern matching ensures all error cases are handled
+/// - Type system prevents mixing up different error kinds
+///
+/// ## The `#[derive(Debug, Error)]` attributes
+/// - `Debug`: Required by `std::error::Error` trait
+/// - `Error`: From `thiserror`, auto-implements `std::error::Error`
+///
+/// ## The `#[error("...")]` attribute
+/// - Automatically implements `Display` trait
+/// - Use `{field}` to interpolate struct fields
+/// - Creates user-friendly error messages
+///
+/// Compare this to the book's manual `Display` implementation in Chapter 9.2
+/// to see how `thiserror` reduces boilerplate.
 #[derive(Debug, Error)]
 pub enum SearchError {
     /// No translation files found containing the search text
@@ -27,7 +88,36 @@ pub enum SearchError {
     #[error("Translation key '{key}' found in {file} but no code references detected.\n\nTip: Check if the key is actually used in the codebase")]
     NoCodeReferences { key: String, file: PathBuf },
 
-    /// IO error occurred
+    /// IO error occurred during file operations.
+    ///
+    /// # Rust Book Reference
+    ///
+    /// **Chapter 9.2: Propagating Errors**
+    /// https://doc.rust-lang.org/book/ch09-02-recoverable-errors-with-result.html#propagating-errors
+    ///
+    /// # Educational Notes - The `#[from]` Attribute
+    ///
+    /// The `#[from]` attribute automatically implements:
+    /// ```rust,ignore
+    /// impl From<std::io::Error> for SearchError {
+    ///     fn from(err: std::io::Error) -> Self {
+    ///         SearchError::Io(err)
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// This enables the `?` operator to automatically convert IO errors:
+    /// ```rust,ignore
+    /// fn read_file(path: &Path) -> Result<String> {
+    ///     let contents = std::fs::read_to_string(path)?;  // IO error auto-converts
+    ///     Ok(contents)
+    /// }
+    /// ```
+    ///
+    /// Without `#[from]`, you would need manual conversion or `.map_err()`.
+    ///
+    /// **Key Point**: The `?` operator calls `From::from` automatically,
+    /// making error propagation seamless across different error types.
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 
@@ -49,7 +139,36 @@ pub enum SearchError {
 }
 
 impl SearchError {
-    /// Create a NoTranslationFiles error with default searched paths
+    /// Create a NoTranslationFiles error with default searched paths.
+    ///
+    /// # Rust Book Reference
+    ///
+    /// **Chapter 10.2: Traits as Parameters**
+    /// https://doc.rust-lang.org/book/ch10-02-traits.html#traits-as-parameters
+    ///
+    /// # Educational Notes - `impl Into<String>`
+    ///
+    /// Using `impl Into<String>` instead of `String` makes the API more flexible:
+    ///
+    /// ```rust,ignore
+    /// // All of these work:
+    /// SearchError::no_translation_files("add new");           // &str
+    /// SearchError::no_translation_files(String::from("add new")); // String
+    /// SearchError::no_translation_files(owned_string);        // String (moved)
+    /// ```
+    ///
+    /// **How it works:**
+    /// - `&str` implements `Into<String>` (converts by allocating)
+    /// - `String` implements `Into<String>` (converts by identity/move)
+    /// - The `.into()` call inside performs the conversion
+    ///
+    /// **Trade-off:**
+    /// - Pro: Caller convenience - accepts multiple types
+    /// - Pro: Follows Rust API guidelines
+    /// - Con: Slightly less clear what conversions happen
+    ///
+    /// **Best Practice**: Use `impl Into<T>` for owned types in constructors/builders,
+    /// use `&str` for borrowed parameters in regular methods.
     pub fn no_translation_files(text: impl Into<String>) -> Self {
         Self::NoTranslationFiles {
             text: text.into(),
@@ -57,7 +176,20 @@ impl SearchError {
         }
     }
 
-    /// Create a NoTranslationFiles error with custom searched paths
+    /// Create a NoTranslationFiles error with custom searched paths.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use code_search_cli::error::SearchError;
+    ///
+    /// let err = SearchError::no_translation_files_with_paths(
+    ///     "Add New",
+    ///     "src/locales, config/i18n"
+    /// );
+    /// ```
+    ///
+    /// Both parameters accept `&str` or `String` thanks to `impl Into<String>`.
     pub fn no_translation_files_with_paths(
         text: impl Into<String>,
         paths: impl Into<String>,
@@ -68,7 +200,15 @@ impl SearchError {
         }
     }
 
-    /// Create a YamlParseError from a file path and error
+    /// Create a YamlParseError from a file path and error.
+    ///
+    /// # Educational Notes - Multiple Generic Parameters
+    ///
+    /// This method shows using `impl Into<T>` with different types:
+    /// - `impl Into<PathBuf>` accepts `&Path`, `PathBuf`, `&str`, `String`
+    /// - `impl Into<String>` accepts `&str`, `String`
+    ///
+    /// Each parameter independently accepts its own set of convertible types.
     pub fn yaml_parse_error(file: impl Into<PathBuf>, reason: impl Into<String>) -> Self {
         Self::YamlParseError {
             file: file.into(),
