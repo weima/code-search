@@ -1,27 +1,138 @@
+//! # Ownership and Borrowing - Rust Book Chapter 4
+//!
+//! This module demonstrates ownership, borrowing, and references from
+//! [The Rust Book Chapter 4](https://doc.rust-lang.org/book/ch04-00-understanding-ownership.html).
+//!
+//! ## Key Concepts Demonstrated
+//!
+//! 1. **Borrowing with `&` References** (Chapter 4.2)
+//!    - The `build()` method takes `&SearchResult` instead of `SearchResult`
+//!    - Allows reading data without taking ownership
+//!    - Multiple borrows can exist simultaneously for reading
+//!
+//! 2. **Ownership Transfer with `.clone()`** (Chapter 4.1)
+//!    - `result.query.clone()` creates a new owned `String`
+//!    - Necessary when building nodes that need to own their data
+//!    - Trade-off: memory cost vs. ownership flexibility
+//!
+//! 3. **Iterators and Borrowing** (Chapter 4.2 + 13.2)
+//!    - `.iter()` creates an iterator of references (`&T`)
+//!    - Allows processing collections without taking ownership
+//!    - The original collection remains usable after iteration
+//!
+//! 4. **References in Collections** (Chapter 4.2)
+//!    - `Vec<_>` with `.iter()` creates `Vec<&T>`
+//!    - Temporary collections of references avoid cloning
+//!    - References must not outlive the data they point to
+//!
+//! ## Learning Notes
+//!
+//! **Why use `&SearchResult` instead of `SearchResult`?**
+//! - Caller retains ownership and can reuse the data
+//! - More efficient - no need to clone the entire structure
+//! - Follows Rust convention: borrow when you don't need ownership
+//!
+//! **When to clone vs. when to borrow?**
+//! - Clone: When you need to store data in a new structure (like TreeNode)
+//! - Borrow: When you only need to read data temporarily
+//!
+//! **The `.iter()` pattern:**
+//! ```rust,ignore
+//! for entry in &result.translation_entries {  // Borrows each element
+//!     // entry is &TranslationEntry
+//! }
+//! // vs
+//! for entry in result.translation_entries {   // Takes ownership
+//!     // entry is TranslationEntry (moved)
+//! }
+//! ```
+
 use crate::tree::{Location, NodeType, ReferenceTree, TreeNode};
 use crate::{CodeReference, SearchResult, TranslationEntry};
 
-/// Builder for constructing reference trees from search results
+/// Builder for constructing reference trees from search results.
+///
+/// # Rust Book Reference
+///
+/// **Chapter 4: Understanding Ownership**
+/// https://doc.rust-lang.org/book/ch04-00-understanding-ownership.html
+///
+/// This builder demonstrates how to work with borrowed data to construct
+/// owned data structures efficiently.
 pub struct ReferenceTreeBuilder;
 
 impl ReferenceTreeBuilder {
-    /// Build a reference tree from search results
+    /// Build a reference tree from search results.
     ///
     /// Creates a hierarchical tree structure:
     /// - Root: search query text
     ///   - Translation: translation file entry
     ///     - KeyPath: full translation key
     ///       - CodeRef: code reference using the key
+    ///
+    /// # Rust Book Reference
+    ///
+    /// **Chapter 4.2: References and Borrowing**
+    /// https://doc.rust-lang.org/book/ch04-02-references-and-borrowing.html
+    ///
+    /// # Educational Notes - Borrowing with `&SearchResult`
+    ///
+    /// This method signature demonstrates **immutable borrowing**:
+    ///
+    /// ```rust,ignore
+    /// pub fn build(result: &SearchResult) -> ReferenceTree
+    /// //                   ^
+    /// //                   Borrows result, doesn't take ownership
+    /// ```
+    ///
+    /// **Why borrow instead of taking ownership?**
+    ///
+    /// 1. **Caller keeps ownership:**
+    ///    ```rust,ignore
+    ///    let result = search_translations("add new")?;
+    ///    let tree = ReferenceTreeBuilder::build(&result);  // Borrow
+    ///    // result is still usable here!
+    ///    println!("Found {} entries", result.translation_entries.len());
+    ///    ```
+    ///
+    /// 2. **No unnecessary cloning:**
+    ///    - If we took ownership: `build(result: SearchResult)`
+    ///    - Caller would need: `build(result.clone())` - expensive!
+    ///    - With borrowing: `build(&result)` - zero cost!
+    ///
+    /// 3. **Rust's borrowing rules ensure safety:**
+    ///    - The reference `&result` is valid for the entire function
+    ///    - We can read all fields: `result.query`, `result.translation_entries`
+    ///    - We cannot modify the data (immutable borrow)
+    ///    - The original data cannot be moved while borrowed
+    ///
+    /// **Inside the function:**
+    /// - We borrow fields: `&result.translation_entries`
+    /// - We clone when we need ownership: `result.query.clone()`
+    /// - We iterate with `.iter()` to borrow elements: `for entry in &result.translation_entries`
+    ///
+    /// **Key Insight:** Borrowing is Rust's way of saying "I just need to look at
+    /// this data temporarily, I don't need to own it."
     pub fn build(result: &SearchResult) -> ReferenceTree {
+        // OWNERSHIP: Clone the query string because TreeNode needs to own its content
+        // Chapter 4.1: The query is a String, which doesn't implement Copy
+        // We must clone to create a new owned value for the TreeNode
         let mut root = TreeNode::new(NodeType::Root, result.query.clone());
         let mut used_code_refs = std::collections::HashSet::new();
 
-        // Group code references by translation entry key
+        // BORROWING: Iterate over references to avoid moving the vector
+        // Chapter 4.2: `&result.translation_entries` borrows the Vec
+        // `for entry in &vec` is shorthand for `for entry in vec.iter()`
+        // Each `entry` is a `&TranslationEntry` (reference)
         for entry in &result.translation_entries {
             let mut translation_node = Self::build_translation_node(entry);
             let mut key_node = Self::build_key_node(entry);
 
-            // Find all code references for this translation key
+            // ITERATORS AND BORROWING: Build a collection of references
+            // Chapter 13.2: `.iter()` creates an iterator of references
+            // `.enumerate()` adds indices: (usize, &CodeReference)
+            // `.filter()` borrows each element to check the condition
+            // Result: Vec<(usize, &CodeReference)> - no cloning needed!
             let matching_refs: Vec<_> = result
                 .code_references
                 .iter()
@@ -69,20 +180,85 @@ impl ReferenceTreeBuilder {
         ReferenceTree::new(root)
     }
 
-    /// Build a translation node from a translation entry
+    /// Build a translation node from a translation entry.
+    ///
+    /// # Rust Book Reference
+    ///
+    /// **Chapter 4.2: References and Borrowing**
+    /// https://doc.rust-lang.org/book/ch04-02-references-and-borrowing.html
+    ///
+    /// # Educational Notes - Borrowing vs. Cloning
+    ///
+    /// This method takes `&TranslationEntry` (a reference) but returns an owned `TreeNode`.
+    ///
+    /// **The pattern:**
+    /// ```text
+    /// fn build_translation_node(entry: &TranslationEntry) -> TreeNode
+    /// //                               ^                      ^
+    /// //                               Borrow input          Own output
+    /// ```
+    ///
+    /// **Inside the function:**
+    /// - We borrow: `entry.file`, `entry.line` (read-only access)
+    /// - We clone: `entry.key.clone()`, `entry.value.clone()` (need owned data)
+    /// - We move: `location` into the TreeNode (transfer ownership)
+    ///
+    /// **Why this pattern?**
+    /// - Input: Borrow because we don't need to consume the entry
+    /// - Output: Own because TreeNode needs to live independently
+    /// - Clone: Only the strings we need to store, not the entire entry
+    ///
+    /// **Memory perspective:**
+    /// ```text
+    /// entry (borrowed)          TreeNode (owned)
+    /// ├─ key: "invoice.add"  --clone--> content: "invoice.add"
+    /// ├─ value: "Add New"    --clone--> metadata: "Add New"
+    /// ├─ file: "en.yml"      --clone--> location.file: "en.yml"
+    /// └─ line: 42            --copy---> location.line: 42
+    /// ```
     fn build_translation_node(entry: &TranslationEntry) -> TreeNode {
+        // CLONE: PathBuf doesn't implement Copy, so we clone to create owned data
+        // Chapter 4.1: Clone creates a deep copy on the heap
         let location = Location::new(entry.file.clone(), entry.line);
+
+        // CLONE: String doesn't implement Copy, clone creates new heap allocation
         let mut node = TreeNode::with_location(NodeType::Translation, entry.key.clone(), location);
+
+        // CLONE: Store owned copy of the translation value
         node.metadata = Some(entry.value.clone());
+
+        // MOVE: Transfer ownership of node to caller
+        // Chapter 4.1: The node is moved out of this function
         node
     }
 
-    /// Build a key path node from a translation entry
+    /// Build a key path node from a translation entry.
+    ///
+    /// # Educational Notes - Minimal Borrowing
+    ///
+    /// This is the simplest borrowing pattern:
+    /// - Borrow the entry: `&TranslationEntry`
+    /// - Clone only what we need: `entry.key.clone()`
+    /// - Return owned result: `TreeNode`
+    ///
+    /// We could have taken ownership: `fn build_key_node(entry: TranslationEntry)`
+    /// But then the caller would lose access to `entry` after calling this function.
     fn build_key_node(entry: &TranslationEntry) -> TreeNode {
         TreeNode::new(NodeType::KeyPath, entry.key.clone())
     }
 
-    /// Build a code reference node
+    /// Build a code reference node.
+    ///
+    /// # Educational Notes - Borrowing Composite Types
+    ///
+    /// `CodeReference` contains multiple fields:
+    /// - `file: PathBuf` - heap-allocated path
+    /// - `line: usize` - stack-allocated number (Copy type)
+    /// - `context: String` - heap-allocated string
+    /// - `key_path: String` - heap-allocated string
+    ///
+    /// By borrowing `&CodeReference`, we can access all fields without cloning
+    /// the entire struct. We only clone the specific fields we need to store.
     fn build_code_node(code_ref: &CodeReference) -> TreeNode {
         let location = Location::new(code_ref.file.clone(), code_ref.line);
         let mut node =
