@@ -139,6 +139,30 @@ pub struct SearchResult {
 /// 2. Extracts translation keys from YAML files
 /// 3. Finds code references for each translation key
 /// 4. Returns a SearchResult with all findings
+///
+/// # Rust Book Reference
+///
+/// **Chapter 9.2: Recoverable Errors with Result**
+/// https://doc.rust-lang.org/book/ch09-02-recoverable-errors-with-result.html
+///
+/// # Educational Notes - The `#[must_use]` Attribute
+///
+/// The `#[must_use]` attribute causes a compiler warning if the Result is ignored:
+///
+/// ```rust,ignore
+/// run_search(query);  // WARNING: unused Result that must be used
+/// ```
+///
+/// This prevents accidentally ignoring errors. You must either:
+/// - Handle the error: `match run_search(query) { Ok(r) => ..., Err(e) => ... }`
+/// - Propagate with `?`: `let result = run_search(query)?;`
+/// - Explicitly ignore: `let _ = run_search(query);`
+///
+/// **Why this matters:**
+/// - Rust doesn't have exceptions - errors must be explicitly handled
+/// - Ignoring a Result means ignoring potential errors
+/// - `#[must_use]` makes error handling explicit and intentional
+#[must_use = "this function returns a Result that should be handled"]
 pub fn run_search(query: SearchQuery) -> Result<SearchResult> {
     // Determine the base directory to search
     let base_dir = query
@@ -247,6 +271,7 @@ pub fn run_search(query: SearchQuery) -> Result<SearchResult> {
 ///
 /// # Returns
 /// A `CallTree` representing the call graph, or `None` if the start function is not found.
+#[must_use = "this function returns a Result that should be handled"]
 pub fn run_trace(query: TraceQuery) -> Result<Option<CallTree>> {
     let base_dir = query
         .base_dir

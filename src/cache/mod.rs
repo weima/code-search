@@ -358,16 +358,25 @@ impl LocalCache {
             .map_err(|e| SearchError::Generic(format!("Failed to get current time: {}", e)))?
             .as_secs();
 
-        let mut entries: Vec<(Vec<u8>, u64)> = Vec::new();
-
-        for (key, value) in self.db.iter().flatten() {
-            if let Ok(cache_value) = bincode::deserialize::<CacheValue>(&value) {
-                // Skip expired entries (will be cleaned lazily)
-                if now.saturating_sub(cache_value.last_accessed) <= MAX_CACHE_AGE_SECS {
-                    entries.push((key.to_vec(), cache_value.last_accessed));
-                }
-            }
-        }
+        // ITERATOR IMPROVEMENT: Use filter_map instead of manual loop
+        // Rust Book Chapter 13.2: Iterator Adapters
+        // filter_map combines filtering and mapping in one pass
+        let mut entries: Vec<(Vec<u8>, u64)> = self
+            .db
+            .iter()
+            .flatten()
+            .filter_map(|(key, value)| {
+                // Try to deserialize, convert Result to Option
+                bincode::deserialize::<CacheValue>(&value)
+                    .ok()
+                    // Filter out expired entries
+                    .filter(|cache_value| {
+                        now.saturating_sub(cache_value.last_accessed) <= MAX_CACHE_AGE_SECS
+                    })
+                    // Map to the tuple we need
+                    .map(|cache_value| (key.to_vec(), cache_value.last_accessed))
+            })
+            .collect();
 
         // Sort by last accessed time (oldest first)
         entries.sort_by_key(|(_, last_accessed)| *last_accessed);
