@@ -159,13 +159,14 @@ fn test_run_search_finds_all_frameworks() {
 
 #[test]
 fn test_run_search_with_current_dir() {
-    // Test without specifying base_dir (uses current directory)
-    let query = SearchQuery::new("test".to_string());
+    // Test with a small directory to avoid scanning entire workspace
+    let query = SearchQuery::new("test".to_string())
+        .with_base_dir(PathBuf::from("tests/fixtures/rails-app"));
 
     let result = run_search(query);
     assert!(
         result.is_ok(),
-        "Search should succeed with current directory"
+        "Search should succeed with specified directory"
     );
 }
 

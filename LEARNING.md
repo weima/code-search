@@ -2,6 +2,72 @@
 
 This guide maps concepts from [The Rust Programming Language](https://doc.rust-lang.org/book/) (The Rust Book) to real-world examples in this codebase.
 
+## 👋 Complete Beginner? Start Here!
+
+**Never written Rust before?** Follow this path:
+
+### Step 1: Install Rust (10 minutes)
+```bash
+# Install Rust
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+# Verify installation
+rustc --version
+cargo --version
+```
+
+### Step 2: Read The Basics (2-3 hours)
+Read these chapters from The Rust Book first:
+1. [Chapter 1: Getting Started](https://doc.rust-lang.org/book/ch01-00-getting-started.html)
+2. [Chapter 2: Guessing Game](https://doc.rust-lang.org/book/ch02-00-guessing-game-tutorial.html) - Hands-on tutorial
+3. [Chapter 3: Common Concepts](https://doc.rust-lang.org/book/ch03-00-common-programming-concepts.html) - Variables, types, functions
+
+### Step 3: Clone and Build This Project (5 minutes)
+```bash
+git clone https://github.com/weima/code-search.git
+cd code-search
+cargo build --release
+cargo test
+```
+
+If it builds and tests pass, you're ready to explore!
+
+### Step 4: Your First Code Reading (30 minutes)
+
+**Start with the simplest file:** `src/tree/node.rs`
+
+1. Open the file
+2. Read the module-level documentation at the top (`//!` comments)
+3. Look at the `NodeType` enum - it's just 4 variants!
+4. See the `#[derive(Debug, Clone)]` - these are automatic implementations
+5. Read the inline comments explaining each concept
+
+**Don't understand everything?** That's normal! The comments reference specific Rust Book chapters to read.
+
+### Step 5: Follow the Beginner Path (See below)
+
+Once you've done the above, follow the **Beginner Learning Path** in this guide.
+
+---
+
+## ⚡ Already Know Another Language?
+
+**Coming from Python/JavaScript/Java?** You can jump in faster:
+
+1. **Read the "Book in a Nutshell" below** (5 minutes)
+2. **Skim Chapters 3-4** of The Rust Book (ownership is the key difference)
+3. **Start with `src/error.rs`** - error handling is familiar but Rust-flavored
+4. **Follow the Intermediate Path** (see below)
+
+**Coming from C/C++?** You'll feel at home:
+
+1. **Read the "Book in a Nutshell" below** (5 minutes)
+2. **Focus on Chapter 4** (ownership replaces manual memory management)
+3. **Start with `src/search/text_search.rs`** - see how Rust prevents data races
+4. **Follow the Advanced Path** (see below)
+
+---
+
 ## 🚀 The Book in a Nutshell (For Impatient Programmers)
 
 **TL;DR:** Rust is about memory safety without garbage collection. Here's what you need to know:

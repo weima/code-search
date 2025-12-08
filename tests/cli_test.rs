@@ -105,7 +105,10 @@ fn test_trace_mode_backward() {
 #[test]
 fn test_case_sensitive_flag_accepted() {
     let mut cmd = cs_cmd();
-    cmd.args(["Test", "--case-sensitive"]).assert().success();
+    cmd.args(["Test", "--case-sensitive"])
+        .current_dir("tests/fixtures/code-examples")
+        .assert()
+        .success();
 }
 
 #[test]
