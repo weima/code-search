@@ -1,3 +1,41 @@
+//! # Lifetimes - Rust Book Chapter 10.3
+//!
+//! This module demonstrates lifetime annotations from
+//! [The Rust Book Chapter 10.3](https://doc.rust-lang.org/book/ch10-03-lifetime-syntax.html).
+//!
+//! ## Key Concepts Demonstrated
+//!
+//! 1. **Lifetime Parameters on Structs** (Chapter 10.3)
+//!    - `CallGraphBuilder<'a>` holds references with lifetime `'a`
+//!    - Prevents the struct from outliving its referenced data
+//!    - Zero-cost abstraction - no runtime overhead
+//!
+//! 2. **Why Lifetimes Matter**
+//!    - Prevent dangling references at compile time
+//!    - Enable borrowing without ownership transfer
+//!    - Alternative to heap allocation (`Box`) or reference counting (`Rc`)
+//!
+//! 3. **When You Need Explicit Lifetimes**
+//!    - Structs that store references
+//!    - Functions returning references
+//!    - Multiple references with different lifetimes
+//!
+//! ## Learning Notes
+//!
+//! **Most code doesn't need explicit lifetimes!**
+//! - Rust has "lifetime elision" rules that infer lifetimes
+//! - You only write lifetimes when Rust can't figure them out
+//! - This module is a good example of when they're necessary
+//!
+//! **The lifetime syntax:**
+//! - `'a` - A lifetime parameter (can be any name: `'b`, `'lifetime`, etc.)
+//! - `&'a T` - A reference to `T` that lives for lifetime `'a`
+//! - `&'a mut T` - A mutable reference to `T` that lives for lifetime `'a`
+//!
+//! **Common lifetime names:**
+//! - `'a`, `'b`, `'c` - Generic lifetime parameters
+//! - `'static` - Special lifetime for the entire program duration
+
 use crate::error::Result;
 use crate::trace::{CallExtractor, FunctionDef, FunctionFinder};
 use std::collections::HashSet;
@@ -29,7 +67,53 @@ pub struct CallTree {
     pub root: CallNode,
 }
 
-/// Builds a call graph by recursively tracing function calls
+/// Builds a call graph by recursively tracing function calls.
+///
+/// # Rust Book Reference
+///
+/// **Chapter 10.3: Validating References with Lifetimes**
+/// https://doc.rust-lang.org/book/ch10-03-lifetime-syntax.html
+///
+/// # Educational Notes - Lifetime Parameters
+///
+/// This struct demonstrates explicit lifetime annotations:
+///
+/// ```rust,ignore
+/// pub struct CallGraphBuilder<'a> {
+///     finder: &'a mut FunctionFinder,
+///     extractor: &'a CallExtractor,
+/// }
+/// ```
+///
+/// **What does `<'a>` mean?**
+/// - `'a` is a **lifetime parameter** (read as "lifetime a")
+/// - It says: "This struct holds references that live for lifetime 'a"
+/// - The struct cannot outlive the data it references
+///
+/// **Why do we need lifetimes here?**
+/// - `CallGraphBuilder` stores references to `FunctionFinder` and `CallExtractor`
+/// - Without lifetimes, Rust doesn't know how long these references are valid
+/// - The lifetime `'a` connects the struct's lifetime to its references
+///
+/// **What does this prevent?**
+/// ```rust,ignore
+/// let builder = {
+///     let finder = FunctionFinder::new(...);
+///     let extractor = CallExtractor::new(...);
+///     CallGraphBuilder::new(..., &mut finder, &extractor)
+/// }; // ERROR! finder and extractor are dropped here
+/// // builder would have dangling references!
+/// ```
+///
+/// **The lifetime constraint:**
+/// - `CallGraphBuilder<'a>` can only exist while `finder` and `extractor` exist
+/// - Rust enforces this at compile time
+/// - No runtime overhead - pure compile-time safety
+///
+/// **Alternative without lifetimes:**
+/// - Could use `Box<FunctionFinder>` (heap allocation + ownership)
+/// - Could use `Rc<RefCell<FunctionFinder>>` (reference counting + runtime checks)
+/// - Lifetimes are zero-cost: no allocation, no runtime checks
 pub struct CallGraphBuilder<'a> {
     direction: TraceDirection,
     max_depth: usize,
@@ -38,7 +122,38 @@ pub struct CallGraphBuilder<'a> {
 }
 
 impl<'a> CallGraphBuilder<'a> {
-    /// Create a new CallGraphBuilder
+    /// Create a new CallGraphBuilder.
+    ///
+    /// # Rust Book Reference
+    ///
+    /// **Chapter 10.3: Lifetime Annotations in Function Signatures**
+    /// https://doc.rust-lang.org/book/ch10-03-lifetime-syntax.html#lifetime-annotations-in-function-signatures
+    ///
+    /// # Educational Notes - Lifetime in Function Signatures
+    ///
+    /// This function signature shows how lifetimes flow through constructors:
+    ///
+    /// ```rust,ignore
+    /// pub fn new(
+    ///     finder: &'a mut FunctionFinder,
+    ///     extractor: &'a CallExtractor,
+    /// ) -> Self
+    /// ```
+    ///
+    /// **What this means:**
+    /// - The returned `CallGraphBuilder<'a>` contains references with lifetime `'a`
+    /// - Those references come from the input parameters
+    /// - The builder cannot outlive `finder` or `extractor`
+    ///
+    /// **Lifetime elision:**
+    /// Without the struct's `<'a>`, we'd need to write:
+    /// ```rust,ignore
+    /// pub fn new<'a>(
+    ///     finder: &'a mut FunctionFinder,
+    ///     extractor: &'a CallExtractor,
+    /// ) -> CallGraphBuilder<'a>
+    /// ```
+    /// But since the struct already has `<'a>`, we can use `Self`.
     ///
     /// # Arguments
     /// * `direction` - Whether to trace forward or backward
