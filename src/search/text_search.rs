@@ -1,3 +1,37 @@
+//! # Builder Pattern and Concurrency - Rust Book Chapters 5, 10, 16
+//!
+//! This module demonstrates the builder pattern and concurrent programming from
+//! [The Rust Book](https://doc.rust-lang.org/book/).
+//!
+//! ## Key Concepts Demonstrated
+//!
+//! 1. **Builder Pattern** (Chapters 5.3, 10.2)
+//!    - Method chaining by consuming and returning `Self`
+//!    - Ergonomic API design with sensible defaults
+//!    - Type-state pattern for compile-time guarantees
+//!
+//! 2. **Message Passing with Channels** (Chapter 16.2)
+//!    - Using `mpsc::channel()` for thread communication
+//!    - The critical `drop(tx)` pattern for channel termination
+//!    - Collecting results from parallel workers
+//!
+//! 3. **Closures Capturing Environment** (Chapter 13.1)
+//!    - `move` closures transferring ownership to threads
+//!    - Cloning for shared access across threads
+//!    - Nested closures with different capture modes
+//!
+//! ## Learning Notes
+//!
+//! **Why the builder pattern?**
+//! - Provides a fluent, readable API: `TextSearcher::new(dir).case_sensitive(true).search("text")`
+//! - Allows optional configuration without many constructors
+//! - Makes defaults explicit and overridable
+//!
+//! **Why channels for concurrency?**
+//! - Safe message passing between threads (no shared mutable state)
+//! - Natural fit for parallel file searching (many producers, one consumer)
+//! - Rust's ownership prevents data races at compile time
+
 use crate::error::{Result, SearchError};
 use grep_regex::RegexMatcherBuilder;
 use grep_searcher::sinks::UTF8;
@@ -7,7 +41,14 @@ use ignore::WalkBuilder;
 use std::path::PathBuf;
 use std::sync::mpsc;
 
-/// Represents a single match from a text search
+/// Represents a single match from a text search.
+///
+/// # Rust Book Reference
+///
+/// **Chapter 5.1: Defining and Instantiating Structs**
+/// https://doc.rust-lang.org/book/ch05-01-defining-structs.html
+///
+/// This is a simple data-carrying struct with public fields.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Match {
     /// File path where the match was found
@@ -18,7 +59,32 @@ pub struct Match {
     pub content: String,
 }
 
-/// Text searcher that uses ripgrep as a library for fast text searching
+/// Text searcher that uses ripgrep as a library for fast text searching.
+///
+/// # Rust Book Reference
+///
+/// **Chapter 5.3: Method Syntax**
+/// https://doc.rust-lang.org/book/ch05-03-method-syntax.html
+///
+/// **Chapter 10.2: Traits as Parameters**
+/// https://doc.rust-lang.org/book/ch10-02-traits.html
+///
+/// # Educational Notes - The Builder Pattern
+///
+/// This struct demonstrates the builder pattern, a common Rust idiom for
+/// constructing complex objects with many optional parameters.
+///
+/// **Key characteristics:**
+/// 1. Private fields prevent direct construction
+/// 2. `new()` provides sensible defaults
+/// 3. Builder methods take `mut self` and return `Self`
+/// 4. Final `search()` method takes `&self` (doesn't consume)
+///
+/// **Why this pattern?**
+/// - Avoids constructors with many parameters
+/// - Makes optional configuration explicit
+/// - Enables method chaining for readability
+/// - Compile-time validation of configuration
 pub struct TextSearcher {
     /// Whether to respect .gitignore files
     respect_gitignore: bool,
@@ -37,7 +103,29 @@ pub struct TextSearcher {
 }
 
 impl TextSearcher {
-    /// Create a new TextSearcher with default settings
+    /// Create a new TextSearcher with default settings.
+    ///
+    /// # Rust Book Reference
+    ///
+    /// **Chapter 5.3: Method Syntax - Associated Functions**
+    /// https://doc.rust-lang.org/book/ch05-03-method-syntax.html#associated-functions
+    ///
+    /// # Educational Notes - Builder Constructor
+    ///
+    /// This is an associated function (not a method) that creates a new instance.
+    /// It's called with `TextSearcher::new(...)` rather than on an instance.
+    ///
+    /// **Design decisions:**
+    /// - Takes only required parameter (`base_dir`)
+    /// - Sets sensible defaults for all optional fields
+    /// - Returns owned `Self` (not `&Self`)
+    ///
+    /// **Usage pattern:**
+    /// ```rust,ignore
+    /// let searcher = TextSearcher::new(PathBuf::from("/path"))
+    ///     .case_sensitive(true)    // Optional: override default
+    ///     .respect_gitignore(false); // Optional: override default
+    /// ```
     pub fn new(base_dir: PathBuf) -> Self {
         Self {
             respect_gitignore: true,
@@ -50,13 +138,51 @@ impl TextSearcher {
         }
     }
 
-    /// Set whether to respect .gitignore files (default: true)
+    /// Set whether to respect .gitignore files (default: true).
+    ///
+    /// # Rust Book Reference
+    ///
+    /// **Chapter 5.3: Method Syntax**
+    /// https://doc.rust-lang.org/book/ch05-03-method-syntax.html
+    ///
+    /// # Educational Notes - Builder Method Pattern
+    ///
+    /// This method demonstrates the builder pattern's key technique:
+    ///
+    /// ```rust,ignore
+    /// pub fn respect_gitignore(mut self, value: bool) -> Self {
+    /// //                       ^^^^^^^^              ^^^^^^
+    /// //                       Takes ownership       Returns ownership
+    ///     self.respect_gitignore = value;
+    ///     self  // Return modified self for chaining
+    /// }
+    /// ```
+    ///
+    /// **Why `mut self` instead of `&mut self`?**
+    /// - `mut self` takes ownership, allowing method chaining
+    /// - `&mut self` would require explicit returns and be less ergonomic
+    /// - Ownership transfer prevents using partially-configured builders
+    ///
+    /// **Method chaining:**
+    /// ```rust,ignore
+    /// TextSearcher::new(dir)
+    ///     .respect_gitignore(false)  // Consumes and returns Self
+    ///     .case_sensitive(true)      // Consumes and returns Self
+    ///     .search("text")            // Final method takes &self
+    /// ```
     pub fn respect_gitignore(mut self, value: bool) -> Self {
         self.respect_gitignore = value;
         self
     }
 
-    /// Set whether search is case-sensitive (default: false)
+    /// Set whether search is case-sensitive (default: false).
+    ///
+    /// # Educational Notes
+    ///
+    /// Same builder pattern as `respect_gitignore()`. Each builder method:
+    /// 1. Takes ownership of `self`
+    /// 2. Modifies the field
+    /// 3. Returns ownership for chaining
     pub fn case_sensitive(mut self, value: bool) -> Self {
         self.case_sensitive = value;
         self
@@ -86,7 +212,31 @@ impl TextSearcher {
         self
     }
 
-    /// Search for text and return all matches
+    /// Search for text and return all matches.
+    ///
+    /// # Rust Book Reference
+    ///
+    /// **Chapter 16.2: Message Passing with Channels**
+    /// https://doc.rust-lang.org/book/ch16-02-message-passing.html
+    ///
+    /// **Chapter 13.1: Closures**
+    /// https://doc.rust-lang.org/book/ch13-01-closures.html
+    ///
+    /// # Educational Notes - Concurrent Search with Channels
+    ///
+    /// This method demonstrates concurrent programming using message passing:
+    ///
+    /// 1. **Create channel**: `let (tx, rx) = mpsc::channel()`
+    /// 2. **Spawn workers**: Each thread gets a cloned sender (`tx.clone()`)
+    /// 3. **Send results**: Workers send matches through the channel
+    /// 4. **Drop original sender**: Critical for terminating the receiver
+    /// 5. **Collect results**: Main thread receives all matches
+    ///
+    /// **Why channels instead of shared state?**
+    /// - No locks needed (no `Mutex`)
+    /// - Ownership prevents data races
+    /// - Natural producer-consumer pattern
+    /// - Rust's type system ensures thread safety
     ///
     /// # Arguments
     /// * `text` - The text to search for
@@ -95,7 +245,6 @@ impl TextSearcher {
     /// A vector of Match structs containing file path, line number, and content
     pub fn search(&self, text: &str) -> Result<Vec<Match>> {
         // Build the regex matcher with fixed string (literal) matching
-
         let matcher = RegexMatcherBuilder::new()
             .case_insensitive(!self.case_sensitive)
             .word(self.word_match)
@@ -103,7 +252,10 @@ impl TextSearcher {
             .build(text)
             .map_err(|e| SearchError::Generic(format!("Failed to build matcher: {}", e)))?;
 
-        // Create a channel for collecting matches from parallel threads
+        // CHANNEL CREATION: Create a channel for collecting matches from parallel threads
+        // Chapter 16.2: mpsc = "multiple producer, single consumer"
+        // tx (transmitter) can be cloned for each thread
+        // rx (receiver) stays in the main thread
         let (tx, rx) = mpsc::channel();
 
         // Build parallel walker with .gitignore support
@@ -131,10 +283,15 @@ impl TextSearcher {
         }
 
         walk_builder.build_parallel().run(|| {
-            // Each thread gets its own sender and matcher
+            // CLONING FOR THREADS: Each thread gets its own sender and matcher
+            // Chapter 16.2: Clone tx so each thread can send messages
+            // Chapter 13.1: These clones will be moved into the closure below
             let tx = tx.clone();
             let matcher = matcher.clone();
 
+            // MOVE CLOSURE: Transfer ownership of tx and matcher to this thread
+            // Chapter 13.1: The `move` keyword forces the closure to take ownership
+            // Without `move`, the closure would try to borrow, which doesn't work across threads
             Box::new(move |entry| {
                 use ignore::WalkState;
 
@@ -151,13 +308,16 @@ impl TextSearcher {
                 let path = entry.path();
                 let path_buf = path.to_path_buf();
 
-                // Thread-local vector to collect matches for this file
+                // THREAD-LOCAL ACCUMULATOR: Each thread collects its own matches
+                // This avoids contention - no need for Mutex or Arc
                 let mut file_matches = Vec::new();
 
                 // Build searcher
                 let mut searcher = SearcherBuilder::new().line_number(true).build();
 
-                // Search the file
+                // NESTED CLOSURE: Search the file with another closure
+                // Chapter 13.1: This closure captures `file_matches` and `path_buf`
+                // Note: This is NOT a `move` closure - it borrows from the outer closure
                 let result = searcher.search_path(
                     &matcher,
                     path,
@@ -171,7 +331,9 @@ impl TextSearcher {
                     }),
                 );
 
-                // Send matches for this file (if any) through the channel
+                // SEND THROUGH CHANNEL: Send matches to main thread
+                // Chapter 16.2: tx.send() transfers ownership of file_matches
+                // The `let _ =` ignores send errors (receiver might be dropped)
                 if result.is_ok() && !file_matches.is_empty() {
                     let _ = tx.send(file_matches);
                 }
@@ -180,10 +342,15 @@ impl TextSearcher {
             })
         });
 
-        // Drop the original sender so rx.iter() will terminate
+        // CRITICAL: Drop the original sender so rx.iter() will terminate
+        // Chapter 16.2: The receiver's iterator only ends when ALL senders are dropped
+        // We cloned tx for each thread, but we still have the original here
+        // Without this drop, rx would wait forever!
         drop(tx);
 
-        // Collect all matches from all threads
+        // COLLECT RESULTS: Receive all matches from worker threads
+        // Chapter 16.2: The for loop iterates until all senders are dropped
+        // This blocks until all threads finish and send their results
         let mut all_matches = Vec::new();
         for file_matches in rx {
             all_matches.extend(file_matches);
