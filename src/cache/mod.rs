@@ -1,3 +1,54 @@
+//! # Concurrency Patterns - Rust Book Chapter 16
+//!
+//! This module demonstrates thread-safe caching with minimal shared state from
+//! [The Rust Book Chapter 16](https://doc.rust-lang.org/book/ch16-00-concurrency.html).
+//!
+//! ## Key Concepts Demonstrated
+//!
+//! 1. **Shared State with Mutex** (Chapter 16.3)
+//!    - `front_cache: Mutex<HashMap<...>>` for thread-safe in-memory cache
+//!    - Lock held for minimal time to reduce contention
+//!    - Appropriate use case: infrequent updates, small critical sections
+//!
+//! 2. **When NOT to Use Arc<Mutex<T>>** (Chapter 15 + 16)
+//!    - This module does NOT use `Arc<Mutex<T>>` for the main cache
+//!    - Instead uses a persistent database (`sled`) with built-in concurrency
+//!    - Demonstrates that not all shared state needs `Arc<Mutex<T>>`
+//!
+//! 3. **Process-Level Concurrency**
+//!    - Background cache server process (optional)
+//!    - TCP communication between processes
+//!    - Demonstrates concurrency beyond threads
+//!
+//! ## Design Decisions
+//!
+//! **Why `Mutex<HashMap>` for front cache?**
+//! - Small, frequently accessed data (LRU cache)
+//! - Lock contention is acceptable (not in hot loop)
+//! - Simpler than lock-free alternatives
+//!
+//! **Why NOT `Arc<Mutex<Vec>>` for results?**
+//! - Results are returned, not shared
+//! - Caller owns the data
+//! - No need for reference counting
+//!
+//! **Why persistent database instead of in-memory?**
+//! - Cache survives process restarts
+//! - Built-in concurrency control
+//! - Automatic disk management
+//!
+//! ## Learning Notes
+//!
+//! This module shows that effective concurrency doesn't always mean:
+//! - Using `Arc` everywhere
+//! - Sharing everything with `Mutex`
+//! - Complex lock-free algorithms
+//!
+//! Sometimes the best approach is:
+//! - Minimal shared state
+//! - Clear ownership boundaries
+//! - Letting libraries handle concurrency (like `sled`)
+
 use crate::error::{Result, SearchError};
 use crate::parse::TranslationEntry;
 use hashbrown::HashMap;
@@ -143,6 +194,47 @@ impl SearchResultCache {
     }
 }
 
+/// Local cache implementation with two-tier storage.
+///
+/// # Rust Book Reference
+///
+/// **Chapter 16.3: Shared-State Concurrency**
+/// https://doc.rust-lang.org/book/ch16-03-shared-state.html
+///
+/// # Educational Notes - Appropriate Use of Mutex
+///
+/// This struct demonstrates when `Mutex` is the right choice:
+///
+/// ```rust,ignore
+/// struct LocalCache {
+///     front_cache: Mutex<HashMap<Vec<u8>, CacheValue>>,  // Thread-safe
+///     db: Db,  // Already thread-safe (sled handles it)
+/// }
+/// ```
+///
+/// **Why `Mutex<HashMap>` for front_cache?**
+/// 1. **Small, hot data** - LRU cache for recent queries
+/// 2. **Infrequent writes** - Only on cache misses
+/// 3. **Short lock duration** - Just hash lookup/insert
+/// 4. **Simpler than alternatives** - No need for lock-free structures
+///
+/// **Why NOT `Mutex<Db>`?**
+/// - `sled::Db` is already thread-safe
+/// - Adding `Mutex` would be redundant and slower
+/// - Let the library handle concurrency
+///
+/// **Lock scope is minimal:**
+/// ```rust,ignore
+/// fn front_get(&self, key: &[u8]) -> Option<CacheValue> {
+///     self.front_cache.lock().ok()?.get(key).cloned()
+///     // Lock released here automatically (RAII)
+/// }
+/// ```
+///
+/// **Contrast with message passing:**
+/// - Message passing (channels) is better for producer-consumer
+/// - Shared state (Mutex) is better for shared cache
+/// - Choose the right tool for the job!
 struct LocalCache {
     db: Db,
     last_cleanup: SystemTime,
@@ -358,16 +450,25 @@ impl LocalCache {
             .map_err(|e| SearchError::Generic(format!("Failed to get current time: {}", e)))?
             .as_secs();
 
-        let mut entries: Vec<(Vec<u8>, u64)> = Vec::new();
-
-        for (key, value) in self.db.iter().flatten() {
-            if let Ok(cache_value) = bincode::deserialize::<CacheValue>(&value) {
-                // Skip expired entries (will be cleaned lazily)
-                if now.saturating_sub(cache_value.last_accessed) <= MAX_CACHE_AGE_SECS {
-                    entries.push((key.to_vec(), cache_value.last_accessed));
-                }
-            }
-        }
+        // ITERATOR IMPROVEMENT: Use filter_map instead of manual loop
+        // Rust Book Chapter 13.2: Iterator Adapters
+        // filter_map combines filtering and mapping in one pass
+        let mut entries: Vec<(Vec<u8>, u64)> = self
+            .db
+            .iter()
+            .flatten()
+            .filter_map(|(key, value)| {
+                // Try to deserialize, convert Result to Option
+                bincode::deserialize::<CacheValue>(&value)
+                    .ok()
+                    // Filter out expired entries
+                    .filter(|cache_value| {
+                        now.saturating_sub(cache_value.last_accessed) <= MAX_CACHE_AGE_SECS
+                    })
+                    // Map to the tuple we need
+                    .map(|cache_value| (key.to_vec(), cache_value.last_accessed))
+            })
+            .collect();
 
         // Sort by last accessed time (oldest first)
         entries.sort_by_key(|(_, last_accessed)| *last_accessed);

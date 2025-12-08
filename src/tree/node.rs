@@ -1,6 +1,81 @@
+//! # Traits and Derive Macros - Rust Book Chapter 10
+//!
+//! This module demonstrates traits and derive macros from
+//! [The Rust Book Chapter 10](https://doc.rust-lang.org/book/ch10-00-generics.html).
+//!
+//! ## Key Concepts Demonstrated
+//!
+//! 1. **Derive Macros for Common Traits** (Chapter 10.2)
+//!    - `#[derive(Debug)]` - Automatic debug formatting
+//!    - `#[derive(Clone)]` - Automatic cloning implementation
+//!    - `#[derive(PartialEq, Eq)]` - Equality comparisons
+//!
+//! 2. **Trait Bounds and Requirements** (Chapter 10.2)
+//!    - Why certain traits require others (e.g., `Eq` requires `PartialEq`)
+//!    - How derive macros generate implementations
+//!
+//! 3. **Enums with Derive** (Chapter 6.1 + 10.2)
+//!    - Deriving traits for enums
+//!    - All variants must support the derived trait
+//!
+//! ## Learning Notes
+//!
+//! **What are derive macros?**
+//! - Compiler-generated trait implementations
+//! - Reduce boilerplate code
+//! - Only work for types where all fields implement the trait
+//!
+//! **Common derive traits:**
+//! - `Debug` - For `{:?}` formatting and debugging
+//! - `Clone` - For `.clone()` method
+//! - `PartialEq` - For `==` and `!=` operators
+//! - `Eq` - For full equality (requires `PartialEq`)
+//! - `Copy` - For implicit copying (only for stack types)
+
 use std::path::PathBuf;
 
-/// Type of node in the reference tree
+/// Type of node in the reference tree.
+///
+/// # Rust Book Reference
+///
+/// **Chapter 10.2: Traits - Deriving Traits**
+/// https://doc.rust-lang.org/book/ch10-02-traits.html#deriving-traits
+///
+/// **Chapter 6.1: Defining an Enum**
+/// https://doc.rust-lang.org/book/ch06-01-defining-an-enum.html
+///
+/// # Educational Notes - Derive Macros on Enums
+///
+/// This enum demonstrates multiple derived traits:
+///
+/// ```rust,ignore
+/// #[derive(Debug, Clone, PartialEq, Eq)]
+/// pub enum NodeType { ... }
+/// ```
+///
+/// **What each trait provides:**
+///
+/// 1. **`Debug`** - Enables `println!("{:?}", node_type)`
+///    - Essential for debugging and error messages
+///    - Automatically formats enum variants
+///
+/// 2. **`Clone`** - Enables `.clone()` method
+///    - Creates a deep copy of the enum value
+///    - For enums without data, this is trivial
+///
+/// 3. **`PartialEq`** - Enables `==` and `!=` operators
+///    - Compares enum variants for equality
+///    - `Root == Root` is true, `Root == Translation` is false
+///
+/// 4. **`Eq`** - Marker trait for full equality
+///    - Requires `PartialEq` first
+///    - Indicates equality is reflexive, symmetric, and transitive
+///    - Needed for using types as HashMap keys
+///
+/// **Why derive instead of manual implementation?**
+/// - Less code to write and maintain
+/// - Compiler-generated code is correct and efficient
+/// - Consistent behavior across the codebase
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NodeType {
     /// Root node containing the search text
@@ -13,7 +88,44 @@ pub enum NodeType {
     CodeRef,
 }
 
-/// Location information for a node
+/// Location information for a node.
+///
+/// # Rust Book Reference
+///
+/// **Chapter 10.2: Traits - Deriving Traits**
+/// https://doc.rust-lang.org/book/ch10-02-traits.html#deriving-traits
+///
+/// # Educational Notes - Derive on Structs
+///
+/// This struct demonstrates deriving traits on a struct with multiple fields:
+///
+/// ```rust,ignore
+/// #[derive(Debug, Clone, PartialEq, Eq)]
+/// pub struct Location {
+///     pub file: PathBuf,
+///     pub line: usize,
+/// }
+/// ```
+///
+/// **How derive works for structs:**
+/// - Compiler checks that ALL fields implement the trait
+/// - `PathBuf` implements `Debug, Clone, PartialEq, Eq` ✓
+/// - `usize` implements `Debug, Clone, PartialEq, Eq` ✓
+/// - Therefore, `Location` can derive these traits
+///
+/// **Generated `PartialEq` implementation:**
+/// ```rust,ignore
+/// impl PartialEq for Location {
+///     fn eq(&self, other: &Self) -> bool {
+///         self.file == other.file && self.line == other.line
+///     }
+/// }
+/// ```
+///
+/// **Why this matters:**
+/// - Locations can be compared: `loc1 == loc2`
+/// - Locations can be cloned: `loc.clone()`
+/// - Locations can be debugged: `println!("{:?}", loc)`
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Location {
     pub file: PathBuf,
@@ -26,7 +138,43 @@ impl Location {
     }
 }
 
-/// A node in the reference tree
+/// A node in the reference tree.
+///
+/// # Rust Book Reference
+///
+/// **Chapter 10.2: Traits**
+/// https://doc.rust-lang.org/book/ch10-02-traits.html
+///
+/// # Educational Notes - Selective Trait Derivation
+///
+/// Notice this struct only derives `Debug` and `Clone`, not `PartialEq`:
+///
+/// ```rust,ignore
+/// #[derive(Debug, Clone)]  // No PartialEq!
+/// pub struct TreeNode { ... }
+/// ```
+///
+/// **Why not derive `PartialEq`?**
+/// - `TreeNode` contains `Vec<TreeNode>` (recursive structure)
+/// - Comparing entire trees could be expensive
+/// - We don't need to compare trees for equality in this application
+/// - Omitting `PartialEq` prevents accidental expensive comparisons
+///
+/// **Why derive `Clone`?**
+/// - We need to clone nodes when building trees
+/// - `Clone` is explicit (`.clone()`) so we know when it happens
+/// - All fields implement `Clone`:
+///   - `NodeType: Clone` ✓
+///   - `String: Clone` ✓
+///   - `Option<Location>: Clone` ✓ (Location implements Clone)
+///   - `Vec<TreeNode>: Clone` ✓ (recursive, but works)
+///   - `Option<String>: Clone` ✓
+///
+/// **Design principle:**
+/// Only derive traits you actually need. This prevents:
+/// - Accidental expensive operations
+/// - Unnecessary trait bound requirements
+/// - Compilation errors when adding non-Clone fields later
 #[derive(Debug, Clone)]
 pub struct TreeNode {
     pub node_type: NodeType,
