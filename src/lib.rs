@@ -72,7 +72,7 @@ impl SearchQuery {
     pub fn new(text: String) -> Self {
         Self {
             text,
-            case_sensitive: true, // Default to case-sensitive for exact matches
+            case_sensitive: true,
             word_match: false,
             is_regex: false,
             base_dir: None,

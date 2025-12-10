@@ -282,7 +282,7 @@ fn main() {
         }
 
         let mut query = cs::SearchQuery::new(search_text.clone())
-            .with_case_sensitive(!cli.ignore_case) // Default to case-sensitive unless --ignore-case is used
+            .with_case_sensitive(!cli.ignore_case) // Default case-sensitive, unless --ignore-case is used
             .with_word_match(cli.word_regexp)
             .with_regex(cli.regex)
             .with_base_dir(base_dir.clone())
@@ -298,7 +298,7 @@ fn main() {
 
         // Perform file search
         let file_searcher = cs::FileSearcher::new(project_root.clone())
-            .case_sensitive(!cli.ignore_case) // Default to case-sensitive unless --ignore-case is used
+            .case_sensitive(!cli.ignore_case)
             .add_exclusions(exclusions.clone());
         let file_matches = file_searcher.search(&search_text).unwrap_or_default();
 
