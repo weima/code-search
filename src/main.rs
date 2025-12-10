@@ -19,7 +19,7 @@ struct Cli {
     #[arg(value_name = "PATH")]
     path: Option<String>,
 
-    /// Case-sensitive search
+    /// Case-sensitive search (default behavior)
     #[arg(short = 's', long, overrides_with = "ignore_case", visible_alias = "c")]
     case_sensitive: bool,
 
@@ -47,7 +47,7 @@ struct Cli {
     #[arg(long, value_delimiter = ',')]
     exclude: Vec<String>,
 
-    /// Ignore case (case-insensitive search)
+    /// Ignore case (case-insensitive search) - overrides default case-sensitive behavior
     #[arg(short = 'i', long, overrides_with = "case_sensitive")]
     ignore_case: bool,
 

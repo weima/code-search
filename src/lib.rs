@@ -183,6 +183,7 @@ pub fn run_search(query: SearchQuery) -> Result<SearchResult> {
     extractor.set_exclusions(exclusions.clone());
     extractor.set_verbose(query.verbose);
     extractor.set_quiet(query.quiet);
+    extractor.set_case_sensitive(query.case_sensitive);
     let translation_entries = extractor.extract(&base_dir, &query.text)?;
 
     // Step 2: Find code references for each translation entry

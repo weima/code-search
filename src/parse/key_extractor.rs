@@ -15,8 +15,10 @@ use super::yaml_parser::YamlParser;
 pub struct KeyExtractor {
     exclusions: Vec<String>,
     verbose: bool,
-    quiet: bool, // Suppress progress indicators (for --simple mode)
+    quiet: bool,          // Suppress progress indicators (for --simple mode)
+    case_sensitive: bool, // Case-sensitive matching
     cache: Option<SearchResultCache>,
+    progress_count: std::cell::Cell<usize>, // Track progress for better indicator
 }
 
 impl Default for KeyExtractor {
@@ -33,7 +35,9 @@ impl KeyExtractor {
             exclusions: Vec::new(),
             verbose: false,
             quiet: false,
+            case_sensitive: false,
             cache,
+            progress_count: std::cell::Cell::new(0),
         }
     }
 
@@ -52,13 +56,69 @@ impl KeyExtractor {
         self.quiet = quiet;
     }
 
+    /// Set case-sensitive matching
+    pub fn set_case_sensitive(&mut self, case_sensitive: bool) {
+        self.case_sensitive = case_sensitive;
+    }
+
+    /// Print progress indicator with proper formatting
+    /// Only shows meaningful progress - no useless dashes
+    fn print_progress(&self, indicator_type: char) {
+        if self.quiet {
+            return;
+        }
+
+        let count = self.progress_count.get();
+
+        // Only show meaningful progress indicators
+        match indicator_type {
+            '-' => {
+                // Don't show skipped files at all - they're just noise
+                return;
+            }
+            'C' => {
+                // Show cache hits - indicates good performance
+            }
+            '.' => {
+                // Show successful parses - indicates progress
+            }
+            'S' => {
+                // Show parse errors - important for debugging
+            }
+            _ => return,
+        }
+
+        // Print the colored indicator
+        use colored::Colorize;
+        let indicator = match indicator_type {
+            'C' => "C".cyan(),
+            '.' => ".".green(),
+            'S' => "S".yellow(),
+            _ => return,
+        };
+        eprint!("{}", indicator);
+
+        // Update count and add newline + reset every 30 characters
+        let new_count = count + 1;
+        if new_count >= 30 {
+            eprintln!(); // Newline after 30 characters
+            self.progress_count.set(0);
+        } else {
+            self.progress_count.set(new_count);
+        }
+    }
+
     /// Recursively walk `base_dir` for `*.yml` (or `*.yaml`) files, parse each,
     /// and return entries whose **value** contains `query`.
     ///
-    /// Matching is case‑insensitive by default.
+    /// Matching respects case sensitivity setting.
     pub fn extract(&self, base_dir: &Path, query: &str) -> Result<Vec<TranslationEntry>> {
         let mut matches = Vec::new();
-        let lowered = query.to_lowercase();
+        let search_query = if self.case_sensitive {
+            query.to_string()
+        } else {
+            query.to_lowercase()
+        };
         let mut skipped_files = 0;
 
         let walker = WalkDir::new(base_dir).into_iter();
@@ -87,10 +147,7 @@ impl KeyExtractor {
                     match YamlParser::contains_query(path, query) {
                         Ok(false) => {
                             // No match in file, skip it entirely
-                            if !self.quiet {
-                                use colored::Colorize;
-                                eprint!("{}", "-".dimmed()); // Skipped (no match)
-                            }
+                            self.print_progress('-');
                             continue;
                         }
                         Err(_e) => {
@@ -119,8 +176,7 @@ impl KeyExtractor {
 
                     let all_entries = if let Some(cached) = cached_results {
                         if !self.quiet {
-                            use colored::Colorize;
-                            eprint!("{}", "C".cyan()); // Cache hit!
+                            self.print_progress('C');
                         } else {
                             eprintln!("[cache] hit {} (yaml)", path.display());
                         }
@@ -129,10 +185,7 @@ impl KeyExtractor {
                         // Cache miss - parse file with query for optimization
                         match YamlParser::parse_file_with_query(path, Some(query)) {
                             Ok(entries) => {
-                                if !self.quiet {
-                                    use colored::Colorize;
-                                    eprint!("{}", ".".green()); // Successfully parsed
-                                }
+                                self.print_progress('.');
 
                                 // Store in cache
                                 if let (Some(cache), Ok(meta)) =
@@ -148,10 +201,7 @@ impl KeyExtractor {
                             }
                             Err(e) => {
                                 skipped_files += 1;
-                                if !self.quiet {
-                                    use colored::Colorize;
-                                    eprint!("{}", "S".yellow()); // Skipped due to parse error
-                                }
+                                self.print_progress('S');
                                 if self.verbose {
                                     eprintln!(
                                         "\nWarning: Failed to parse YAML file {}: {}",
@@ -166,7 +216,13 @@ impl KeyExtractor {
 
                     // Filter for matching entries
                     for e in all_entries {
-                        if e.value.to_lowercase().contains(&lowered) {
+                        let value_to_check = if self.case_sensitive {
+                            e.value.clone()
+                        } else {
+                            e.value.to_lowercase()
+                        };
+
+                        if value_to_check.contains(&search_query) {
                             matches.push(e);
                         }
                     }
@@ -176,10 +232,7 @@ impl KeyExtractor {
                     match YamlParser::contains_query(path, query) {
                         Ok(false) => {
                             // No match in file, skip it entirely
-                            if !self.quiet {
-                                use colored::Colorize;
-                                eprint!("{}", "-".dimmed()); // Skipped (no match)
-                            }
+                            self.print_progress('-');
                             continue;
                         }
                         Err(_e) => {
@@ -207,8 +260,7 @@ impl KeyExtractor {
 
                     let all_entries = if let Some(cached) = cached_results {
                         if !self.quiet {
-                            use colored::Colorize;
-                            eprint!("{}", "C".cyan()); // Cache hit!
+                            self.print_progress('C');
                         } else {
                             eprintln!("[cache] hit {} (json)", path.display());
                         }
@@ -217,10 +269,7 @@ impl KeyExtractor {
                         // Cache miss - parse file with query for optimization
                         match JsonParser::parse_file_with_query(path, Some(query)) {
                             Ok(entries) => {
-                                if !self.quiet {
-                                    use colored::Colorize;
-                                    eprint!("{}", ".".green()); // Successfully parsed
-                                }
+                                self.print_progress('.');
 
                                 // Store in cache
                                 if let (Some(cache), Ok(meta)) =
@@ -236,10 +285,7 @@ impl KeyExtractor {
                             }
                             Err(e) => {
                                 skipped_files += 1;
-                                if !self.quiet {
-                                    use colored::Colorize;
-                                    eprint!("{}", "S".yellow()); // Skipped due to parse error
-                                }
+                                self.print_progress('S');
                                 if self.verbose {
                                     eprintln!(
                                         "\nWarning: Failed to parse JSON file {}: {}",
@@ -254,7 +300,13 @@ impl KeyExtractor {
 
                     // Filter for matching entries
                     for e in all_entries {
-                        if e.value.to_lowercase().contains(&lowered) {
+                        let value_to_check = if self.case_sensitive {
+                            e.value.clone()
+                        } else {
+                            e.value.to_lowercase()
+                        };
+
+                        if value_to_check.contains(&search_query) {
                             matches.push(e);
                         }
                     }
@@ -262,19 +314,21 @@ impl KeyExtractor {
             }
         }
 
-        // Print newline and summary if files were skipped (only in verbose mode)
+        // Print final newline and summary if files were skipped (only in verbose mode)
         // Note: Skipped files are typically config files (package.json, tsconfig.json, etc.)
         // that aren't translation files, which is expected behavior.
         if !self.quiet {
+            // Always print final newline if we showed any progress
+            if self.progress_count.get() > 0 {
+                eprintln!();
+            }
+
             if skipped_files > 0 && self.verbose {
-                eprintln!(); // Newline after the S indicators
                 eprintln!(
                     "(Skipped {} non-translation file{})",
                     skipped_files,
                     if skipped_files == 1 { "" } else { "s" }
                 );
-            } else if skipped_files > 0 {
-                eprintln!(); // Just newline, no message in non-verbose mode
             }
         }
 
