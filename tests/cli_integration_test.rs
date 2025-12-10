@@ -111,7 +111,7 @@ fn test_cli_multiple_translation_files() {
 #[test]
 fn test_cli_multiple_code_references() {
     let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
-    cmd.arg("add new")
+    cmd.args(["add new", "--ignore-case"])
         .current_dir("tests/fixtures/rails-app")
         .assert()
         .success()
