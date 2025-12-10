@@ -19,7 +19,7 @@ struct Cli {
     #[arg(value_name = "PATH")]
     path: Option<String>,
 
-    /// Case-sensitive search
+    /// Case-sensitive search (default behavior)
     #[arg(short = 's', long, overrides_with = "ignore_case", visible_alias = "c")]
     case_sensitive: bool,
 
@@ -47,7 +47,7 @@ struct Cli {
     #[arg(long, value_delimiter = ',')]
     exclude: Vec<String>,
 
-    /// Ignore case (case-insensitive search)
+    /// Ignore case (case-insensitive search) - overrides default case-sensitive behavior
     #[arg(short = 'i', long, overrides_with = "case_sensitive")]
     ignore_case: bool,
 
@@ -282,7 +282,7 @@ fn main() {
         }
 
         let mut query = cs::SearchQuery::new(search_text.clone())
-            .with_case_sensitive(cli.case_sensitive) // ignore_case is handled by overrides_with
+            .with_case_sensitive(!cli.ignore_case) // Default to case-sensitive unless --ignore-case is used
             .with_word_match(cli.word_regexp)
             .with_regex(cli.regex)
             .with_base_dir(base_dir.clone())
@@ -298,7 +298,7 @@ fn main() {
 
         // Perform file search
         let file_searcher = cs::FileSearcher::new(project_root.clone())
-            .case_sensitive(cli.case_sensitive)
+            .case_sensitive(!cli.ignore_case) // Default to case-sensitive unless --ignore-case is used
             .add_exclusions(exclusions.clone());
         let file_matches = file_searcher.search(&search_text).unwrap_or_default();
 
@@ -310,7 +310,7 @@ fn main() {
                 println!("Files matching '{}':", search_text.bold());
                 for file_match in &file_matches {
                     let path_str = file_match.path.display().to_string();
-                    let highlighted = highlight_match(&path_str, &search_text, cli.case_sensitive);
+                    let highlighted = highlight_match(&path_str, &search_text, !cli.ignore_case);
                     println!("  {}", highlighted);
                 }
             }
@@ -374,7 +374,7 @@ fn main() {
                             for file_match in &file_matches {
                                 let path_str = file_match.path.display().to_string();
                                 let highlighted =
-                                    highlight_match(&path_str, &search_text, cli.case_sensitive);
+                                    highlight_match(&path_str, &search_text, !cli.ignore_case);
                                 println!("   {}", highlighted);
                             }
                         } else {
@@ -399,7 +399,7 @@ fn main() {
                             for file_match in &file_matches {
                                 let path_str = file_match.path.display().to_string();
                                 let highlighted =
-                                    highlight_match(&path_str, &search_text, cli.case_sensitive);
+                                    highlight_match(&path_str, &search_text, !cli.ignore_case);
                                 println!("  {}", highlighted);
                             }
                         }
