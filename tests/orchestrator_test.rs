@@ -73,7 +73,8 @@ fn test_run_search_with_no_matches() {
 #[test]
 fn test_run_search_case_insensitive() {
     let query = SearchQuery::new("ADD NEW".to_string())
-        .with_base_dir(PathBuf::from("tests/fixtures/rails-app"));
+        .with_base_dir(PathBuf::from("tests/fixtures/rails-app"))
+        .with_case_sensitive(false); // Explicitly set case-insensitive
 
     let result = run_search(query);
     assert!(result.is_ok());

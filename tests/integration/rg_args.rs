@@ -9,16 +9,16 @@ fn test_ignore_case_flag() {
     let temp_dir = TempDir::new().unwrap();
     fs::write(temp_dir.path().join("test.txt"), "Hello World").unwrap();
 
-    // Default is case insensitive
+    // Default is case sensitive - should not find "Hello World" when searching for "hello"
     let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.env("NO_COLOR", "1")
         .arg("hello")
         .current_dir(temp_dir.path())
         .assert()
         .success()
-        .stdout(predicate::str::contains("Hello World"));
+        .stdout(predicate::str::contains("No matches found"));
 
-    // -i should also work
+    // -i should work (case insensitive)
     let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.env("NO_COLOR", "1")
         .args(["hello", "-i"])
@@ -27,7 +27,7 @@ fn test_ignore_case_flag() {
         .success()
         .stdout(predicate::str::contains("Hello World"));
 
-    // -s should fail to find "hello" (case sensitive mismatch)
+    // -s should also fail to find "hello" (explicit case sensitive)
     let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.env("NO_COLOR", "1")
         .args(["hello", "-s"])
