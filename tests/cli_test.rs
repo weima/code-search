@@ -141,8 +141,9 @@ fn test_trace_function_not_found_shows_helpful_tips() {
 #[test]
 fn test_default_mode_without_flags_does_i18n_search() {
     // This test verifies that default mode (no --trace flags) still performs i18n search
+    // With case-sensitive default, we need to match the exact case in the translation file
     let mut cmd = cs_cmd();
-    cmd.arg("Add New")
+    cmd.arg("add new") // Changed to lowercase to match translation value
         .current_dir("tests/fixtures/rails-app")
         .assert()
         .success()

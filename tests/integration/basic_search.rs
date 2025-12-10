@@ -37,11 +37,12 @@ fn test_basic_search_shows_complete_chain() {
 #[test]
 fn test_search_with_case_insensitive_default() {
     // Given search text with different casing
-    // When I search without --case-sensitive flag
+    // When I search with --ignore-case flag
     // Then I find matches regardless of case
 
     let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
     cmd.arg("Add New") // Mixed case
+        .arg("--ignore-case") // Use ignore-case flag for case-insensitive search
         .current_dir("tests/fixtures/rails-app")
         .assert()
         .success()
