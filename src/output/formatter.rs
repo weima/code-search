@@ -311,12 +311,13 @@ impl TreeFormatter {
                 format!("Key: {}", node.content)
             }
             NodeType::CodeRef => {
-                // Truncate code context
-                let available_width = self.max_width.saturating_sub(30);
-                let width = if available_width < 20 {
-                    20
+                // Be much more generous with code context truncation
+                // Users expect to see complete code lines, especially for exact matches
+                let available_width = self.max_width.saturating_sub(10); // Much less aggressive
+                let width = if available_width < 100 {
+                    200 // Minimum reasonable width for code
                 } else {
-                    available_width
+                    available_width.max(200) // At least 200 chars for code
                 };
                 let truncated = self.truncate(node.content.trim(), width);
 
