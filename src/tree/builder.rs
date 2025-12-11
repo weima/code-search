@@ -290,6 +290,8 @@ mod tests {
             pattern: r#"I18n\.t\(['"]([^'"]+)['"]\)"#.to_string(),
             context: "I18n.t('invoice.labels.add_new')".to_string(),
             key_path: "invoice.labels.add_new".to_string(),
+            context_before: vec![],
+            context_after: vec![],
         }
     }
 

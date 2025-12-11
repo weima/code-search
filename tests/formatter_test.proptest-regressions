@@ -1,0 +1,10 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc ff4996a050b88fe48c7edb08d4717202b1f53cc1506c71c1d7a46a4a74033733 # shrinks to translation_key = "a", translation_value = "\u{1b}[", file_path = "_.yml", line_num = 1, code_content = ""
+cc efeedab5bcffebf71b847a1ce377b8856d4aa0ff85c16e26bb7376963a54a015 # shrinks to translation_key = "a", translation_value = "", code_content = "", file_path = "-.yml", line_num = 1
+cc 8e63be8944b0d260f2d1bb594af0a540651609123042a6cee541614412b34c52 # shrinks to translation_key = "A", translation_value = "", code_content = "a", file_path = "A.yml", line_num = 1
+cc 61276357924d1babeb493cef454d4f6d15133cad21858770fb129eb1580c5133 # shrinks to search_text = "A  ", file_content = ["", "", "", "", ""], file_path = "a_000A.ts", line_numbers = [1, 1, 1, 1, 1]

@@ -1,9 +1,8 @@
-#[allow(deprecated)]
-use assert_cmd::Command;
+use assert_cmd::{cargo_bin, Command};
 use predicates::prelude::*;
 
 fn cs_cmd() -> Command {
-    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
+    let mut cmd = Command::new(cargo_bin!("cs"));
     cmd.env("NO_COLOR", "1");
     cmd
 }

@@ -33,6 +33,7 @@
 //! - Rust's ownership prevents data races at compile time
 
 use crate::error::{Result, SearchError};
+use grep_matcher::Matcher;
 use grep_regex::RegexMatcherBuilder;
 use grep_searcher::sinks::UTF8;
 use grep_searcher::SearcherBuilder;
@@ -57,6 +58,10 @@ pub struct Match {
     pub line: usize,
     /// Content of the matching line
     pub content: String,
+    /// Context lines before the match
+    pub context_before: Vec<String>,
+    /// Context lines after the match
+    pub context_after: Vec<String>,
 }
 
 /// Text searcher that uses ripgrep as a library for fast text searching.
@@ -100,6 +105,8 @@ pub struct TextSearcher {
     exclusions: Vec<String>,
     /// The base directory to search in
     base_dir: PathBuf,
+    /// Number of context lines to show before and after matches
+    context_lines: usize,
 }
 
 impl TextSearcher {
@@ -135,6 +142,7 @@ impl TextSearcher {
             globs: Vec::new(),
             exclusions: Vec::new(),
             base_dir,
+            context_lines: 2, // Default: 2 lines before and after
         }
     }
 
@@ -212,6 +220,12 @@ impl TextSearcher {
         self
     }
 
+    /// Set number of context lines to show before and after matches (default: 2)
+    pub fn context_lines(mut self, lines: usize) -> Self {
+        self.context_lines = lines;
+        self
+    }
+
     /// Search for text and return all matches.
     ///
     /// # Rust Book Reference
@@ -252,6 +266,13 @@ impl TextSearcher {
             .build(text)
             .map_err(|e| SearchError::Generic(format!("Failed to build matcher: {}", e)))?;
 
+        // Build searcher with context lines (for reference, but we use manual context capture)
+        let _searcher = SearcherBuilder::new()
+            .before_context(self.context_lines)
+            .after_context(self.context_lines)
+            .line_number(true)
+            .build();
+
         // CHANNEL CREATION: Create a channel for collecting matches from parallel threads
         // Chapter 16.2: mpsc = "multiple producer, single consumer"
         // tx (transmitter) can be cloned for each thread
@@ -288,6 +309,7 @@ impl TextSearcher {
             // Chapter 13.1: These clones will be moved into the closure below
             let tx = tx.clone();
             let matcher = matcher.clone();
+            let context_lines = self.context_lines;
 
             // MOVE CLOSURE: Transfer ownership of tx and matcher to this thread
             // Chapter 13.1: The `move` keyword forces the closure to take ownership
@@ -312,21 +334,30 @@ impl TextSearcher {
                 // This avoids contention - no need for Mutex or Arc
                 let mut file_matches = Vec::new();
 
-                // Build searcher
-                let mut searcher = SearcherBuilder::new().line_number(true).build();
+                // Use grep-searcher to search the file with context
+                let mut searcher = SearcherBuilder::new()
+                    .before_context(context_lines)
+                    .after_context(context_lines)
+                    .line_number(true)
+                    .build();
 
-                // NESTED CLOSURE: Search the file with another closure
-                // Chapter 13.1: This closure captures `file_matches` and `path_buf`
-                // Note: This is NOT a `move` closure - it borrows from the outer closure
                 let result = searcher.search_path(
                     &matcher,
                     path,
                     UTF8(|line_num, line_content| {
+                        // line_content is already a &str from UTF8 sink
+                        let line_str = line_content;
+
+                        // For now, we'll collect all matches and handle context parsing later
+                        // The grep library provides context in the output, but we need to parse it
                         file_matches.push(Match {
                             file: path_buf.clone(),
                             line: line_num as usize,
-                            content: line_content.trim_end().to_string(),
+                            content: line_str.trim_end().to_string(),
+                            context_before: Vec::new(), // Will be populated by post-processing
+                            context_after: Vec::new(),  // Will be populated by post-processing
                         });
+
                         Ok(true) // Continue searching
                     }),
                 );
@@ -356,7 +387,52 @@ impl TextSearcher {
             all_matches.extend(file_matches);
         }
 
+        // Post-process to add context lines using a second pass
+        self.add_context_to_matches(&mut all_matches, &matcher)?;
+
         Ok(all_matches)
+    }
+
+    /// Add context lines to matches by re-reading files
+    fn add_context_to_matches(&self, matches: &mut [Match], _matcher: &impl Matcher) -> Result<()> {
+        use std::collections::HashMap;
+
+        // Group matches by file to minimize file reads
+        let mut matches_by_file: HashMap<PathBuf, Vec<usize>> = HashMap::new();
+        for (idx, m) in matches.iter().enumerate() {
+            matches_by_file.entry(m.file.clone()).or_default().push(idx);
+        }
+
+        // Process each file
+        for (file_path, match_indices) in matches_by_file {
+            if let Ok(content) = std::fs::read_to_string(&file_path) {
+                let lines: Vec<&str> = content.lines().collect();
+
+                for &match_idx in &match_indices {
+                    let match_ref = &mut matches[match_idx];
+                    let line_idx = match_ref.line.saturating_sub(1); // Convert to 0-indexed
+
+                    if line_idx < lines.len() {
+                        // Capture context lines
+                        let context_start = line_idx.saturating_sub(self.context_lines);
+                        let context_end =
+                            std::cmp::min(line_idx + self.context_lines + 1, lines.len());
+
+                        match_ref.context_before = lines[context_start..line_idx]
+                            .iter()
+                            .map(|s| s.to_string())
+                            .collect();
+
+                        match_ref.context_after = lines[line_idx + 1..context_end]
+                            .iter()
+                            .map(|s| s.to_string())
+                            .collect();
+                    }
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -505,6 +581,7 @@ mod tests {
 
         assert!(!searcher.case_sensitive);
         assert!(searcher.respect_gitignore);
+        assert_eq!(searcher.context_lines, 2);
     }
 
     #[test]

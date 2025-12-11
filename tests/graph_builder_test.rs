@@ -4,7 +4,10 @@ use std::env;
 use std::path::PathBuf;
 
 fn setup_finder_and_extractor() -> (FunctionFinder, CallExtractor) {
-    let base_dir = env::current_dir().unwrap();
+    // Use a specific test fixtures directory instead of scanning the entire project
+    let base_dir = env::current_dir()
+        .unwrap()
+        .join("tests/fixtures/call-trace");
     let finder = FunctionFinder::new(base_dir.clone());
     let extractor = CallExtractor::new(base_dir);
     (finder, extractor)

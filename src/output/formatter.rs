@@ -1,6 +1,6 @@
 use crate::trace::{CallNode, CallTree, TraceDirection};
 use crate::tree::{NodeType, ReferenceTree, TreeNode};
-use crate::SearchResult;
+use crate::{CodeReference, SearchResult};
 use colored::*;
 use regex::RegexBuilder;
 
@@ -8,6 +8,7 @@ use regex::RegexBuilder;
 pub struct TreeFormatter {
     max_width: usize,
     search_query: String,
+    simple_format: bool,
 }
 
 impl TreeFormatter {
@@ -16,6 +17,7 @@ impl TreeFormatter {
         Self {
             max_width: 80,
             search_query: String::new(),
+            simple_format: false,
         }
     }
 
@@ -24,6 +26,7 @@ impl TreeFormatter {
         Self {
             max_width,
             search_query: String::new(),
+            simple_format: false,
         }
     }
 
@@ -33,8 +36,18 @@ impl TreeFormatter {
         self
     }
 
+    /// Enable simple machine-readable format (file:line:content)
+    pub fn with_simple_format(mut self, simple: bool) -> Self {
+        self.simple_format = simple;
+        self
+    }
+
     /// Format a search result with clear sections
     pub fn format_result(&self, result: &SearchResult) -> String {
+        if self.simple_format {
+            return self.format_result_simple(result);
+        }
+
         let mut output = String::new();
 
         // Section 1: Translation Files
@@ -55,19 +68,166 @@ impl TreeFormatter {
         // Section 2: Code References
         if !result.code_references.is_empty() {
             output.push_str(&format!("{}\n", "=== Code References ===".bold()));
-            for code_ref in &result.code_references {
-                // Highlight the key in the context
-                let highlighted_context =
-                    self.highlight_key_in_context(&code_ref.context, &code_ref.key_path);
-                output.push_str(&format!(
-                    "{}:{}:{}\n",
-                    code_ref.file.display(),
-                    code_ref.line,
-                    highlighted_context
-                ));
+
+            // Group code references by file to handle context overlap
+            let grouped_refs = self.group_code_references_by_file(&result.code_references);
+
+            for (file_path, refs) in &grouped_refs {
+                // Sort references by line number
+                let mut sorted_refs = refs.clone();
+                sorted_refs.sort_by_key(|r| r.line);
+
+                // Display with context, handling overlaps like rg
+                let formatted_output =
+                    self.format_code_references_with_context(file_path, &sorted_refs);
+                output.push_str(&formatted_output);
             }
         }
 
+        output
+    }
+
+    /// Format search result in simple machine-readable format (file:line:content)
+    fn format_result_simple(&self, result: &SearchResult) -> String {
+        let mut output = String::new();
+
+        // Translation entries in simple format
+        for entry in &result.translation_entries {
+            let escaped_key = self.escape_simple_content(&entry.key);
+            let escaped_value = self.escape_simple_content(&entry.value);
+            let content = format!("{}: {}", escaped_key, escaped_value);
+            output.push_str(&format!(
+                "{}:{}:{}\n",
+                self.escape_simple_path(&entry.file.display().to_string()),
+                entry.line,
+                content
+            ));
+        }
+
+        // Code references in simple format
+        for code_ref in &result.code_references {
+            let escaped_content = self.escape_simple_content(code_ref.context.trim());
+            output.push_str(&format!(
+                "{}:{}:{}\n",
+                self.escape_simple_path(&code_ref.file.display().to_string()),
+                code_ref.line,
+                escaped_content
+            ));
+        }
+
+        output
+    }
+
+    /// Escape special characters in file paths for simple format
+    fn escape_simple_path(&self, path: &str) -> String {
+        // For file paths, we need to handle colons since they're our delimiter
+        // Use backslash escaping for colons to maintain readability
+        path.replace(':', "\\:")
+    }
+
+    /// Escape special characters in content for simple format
+    fn escape_simple_content(&self, content: &str) -> String {
+        // Remove any ANSI color codes first
+        let clean_content = self.strip_ansi_codes(content);
+
+        // Replace newlines with spaces to keep one result per line
+        let single_line = clean_content.replace(['\n', '\r'], " ");
+
+        // Trim excessive whitespace
+        let trimmed = single_line.trim();
+
+        // Replace multiple spaces with single space
+        let normalized = regex::Regex::new(r"\s+").unwrap().replace_all(trimmed, " ");
+
+        normalized.to_string()
+    }
+
+    /// Strip ANSI color codes from text
+    fn strip_ansi_codes(&self, text: &str) -> String {
+        // More comprehensive regex to remove ANSI escape sequences
+        // First pattern: complete ANSI sequences ending with a letter
+        let complete_ansi = regex::Regex::new(r"\x1b\[[0-9;]*[a-zA-Z]").unwrap();
+        let mut result = complete_ansi.replace_all(text, "").to_string();
+
+        // Second pattern: incomplete ANSI sequences (just \x1b[ with optional numbers/semicolons)
+        let incomplete_ansi = regex::Regex::new(r"\x1b\[[0-9;]*$").unwrap();
+        result = incomplete_ansi.replace_all(&result, "").to_string();
+
+        // Third pattern: any remaining \x1b[ sequences
+        let remaining_ansi = regex::Regex::new(r"\x1b\[").unwrap();
+        result = remaining_ansi.replace_all(&result, "").to_string();
+
+        result
+    }
+
+    /// Group code references by file path
+    fn group_code_references_by_file(
+        &self,
+        code_refs: &[CodeReference],
+    ) -> std::collections::HashMap<std::path::PathBuf, Vec<CodeReference>> {
+        use std::collections::HashMap;
+
+        let mut grouped: HashMap<std::path::PathBuf, Vec<CodeReference>> = HashMap::new();
+        for code_ref in code_refs {
+            grouped
+                .entry(code_ref.file.clone())
+                .or_default()
+                .push(code_ref.clone());
+        }
+        grouped
+    }
+
+    /// Format code references with context lines, handling overlaps like rg
+    fn format_code_references_with_context(
+        &self,
+        file_path: &std::path::Path,
+        refs: &[CodeReference],
+    ) -> String {
+        let mut output = String::new();
+
+        if refs.is_empty() {
+            return output;
+        }
+
+        // Create a merged view of all lines with context
+        let mut all_lines: Vec<(usize, String, bool)> = Vec::new(); // (line_num, content, is_match)
+
+        for code_ref in refs {
+            // Add context before
+            for (i, context_line) in code_ref.context_before.iter().enumerate() {
+                let line_num = code_ref.line - code_ref.context_before.len() + i;
+                all_lines.push((line_num, context_line.clone(), false));
+            }
+
+            // Add the match line
+            let highlighted_context =
+                self.highlight_key_in_context(&code_ref.context, &code_ref.key_path);
+            all_lines.push((code_ref.line, highlighted_context, true));
+
+            // Add context after
+            for (i, context_line) in code_ref.context_after.iter().enumerate() {
+                let line_num = code_ref.line + 1 + i;
+                all_lines.push((line_num, context_line.clone(), false));
+            }
+        }
+
+        // Sort by line number and deduplicate
+        all_lines.sort_by_key(|(line_num, _, _)| *line_num);
+        all_lines.dedup_by_key(|(line_num, _, _)| *line_num);
+
+        // Format output like rg: context lines use '-', match lines use ':'
+        for (line_num, content, is_match) in all_lines {
+            let separator = if is_match { ":" } else { "-" };
+            output.push_str(&format!(
+                "{}{}{}:{}\n",
+                file_path.display(),
+                separator,
+                line_num,
+                content
+            ));
+        }
+
+        output.push('\n'); // Add blank line after each file
         output
     }
 
@@ -93,9 +253,49 @@ impl TreeFormatter {
 
     /// Format a reference tree as a string (legacy tree format)
     pub fn format(&self, tree: &ReferenceTree) -> String {
+        if self.simple_format {
+            return self.format_tree_simple(tree);
+        }
+
         let mut output = String::new();
         self.format_node(&tree.root, &mut output, "", true, true);
         output
+    }
+
+    /// Format tree in simple machine-readable format
+    fn format_tree_simple(&self, tree: &ReferenceTree) -> String {
+        let mut output = String::new();
+        self.collect_simple_entries(&tree.root, &mut output);
+        output
+    }
+
+    /// Recursively collect entries for simple format
+    fn collect_simple_entries(&self, node: &TreeNode, output: &mut String) {
+        // Add current node if it has location info
+        if let Some(location) = &node.location {
+            let content = match node.node_type {
+                NodeType::Translation => {
+                    let key = &node.content;
+                    let value = node.metadata.as_deref().unwrap_or("");
+                    format!("{}: {}", key, value)
+                }
+                NodeType::CodeRef => node.content.trim().to_string(),
+                _ => node.content.clone(),
+            };
+
+            let escaped_content = self.escape_simple_content(&content);
+            output.push_str(&format!(
+                "{}:{}:{}\n",
+                self.escape_simple_path(&location.file.display().to_string()),
+                location.line,
+                escaped_content
+            ));
+        }
+
+        // Process children
+        for child in &node.children {
+            self.collect_simple_entries(child, output);
+        }
     }
 
     pub fn format_trace_tree(&self, tree: &CallTree, direction: TraceDirection) -> String {

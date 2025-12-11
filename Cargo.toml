@@ -57,6 +57,7 @@ assert_cmd = "2.0"
 predicates = "3.0"
 tempfile = "3.8"
 criterion = "0.5"
+proptest = "1.4"
 
 [[test]]
 name = "graph_builder_test"
@@ -82,6 +83,26 @@ harness = false
 name = "large_files_benchmark"
 harness = false
 
+[[bench]]
+name = "format_performance_benchmark"
+harness = false
+
+[[bench]]
+name = "simple_format_test"
+harness = false
+
+[[bench]]
+name = "minimal_test"
+harness = false
+
+[[bench]]
+name = "cache_impact_test"
+harness = false
+
 [[test]]
 name = "integration_rg_args"
 path = "tests/integration/rg_args.rs"
+
+[[test]]
+name = "integration_ai_agent_scenarios"
+path = "tests/integration/ai_agent_scenarios.rs"

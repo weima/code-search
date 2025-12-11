@@ -5,6 +5,7 @@ use crate::error::Result;
 use std::path::Path;
 use walkdir::WalkDir;
 
+use super::js_parser::JsParser;
 use super::json_parser::JsonParser;
 use super::translation::TranslationEntry;
 use super::yaml_parser::YamlParser;
@@ -141,6 +142,7 @@ impl KeyExtractor {
             let path = entry.path();
             if let Some(ext) = path.extension() {
                 let ext_str = ext.to_string_lossy();
+
                 if ext_str == "yml" || ext_str == "yaml" {
                     // OPTIMIZATION: Use ripgrep to pre-filter files before parsing
                     // This avoids expensive YAML parsing for files without matches
@@ -289,6 +291,89 @@ impl KeyExtractor {
                                 if self.verbose {
                                     eprintln!(
                                         "\nWarning: Failed to parse JSON file {}: {}",
+                                        path.display(),
+                                        e
+                                    );
+                                }
+                                continue;
+                            }
+                        }
+                    };
+
+                    // Filter for matching entries
+                    for e in all_entries {
+                        let value_to_check = if self.case_sensitive {
+                            e.value.clone()
+                        } else {
+                            e.value.to_lowercase()
+                        };
+
+                        if value_to_check.contains(&search_query) {
+                            matches.push(e);
+                        }
+                    }
+                } else if ext_str == "js" {
+                    // OPTIMIZATION: Use ripgrep to pre-filter files before parsing
+                    match JsParser::contains_query(path, query) {
+                        Ok(false) => {
+                            // No match in file, skip it entirely
+                            self.print_progress('-');
+                            continue;
+                        }
+                        Err(_e) => {
+                            // ripgrep failed, fall back to full parsing
+                        }
+                        Ok(true) => {
+                            // Match found, proceed with parsing below
+                        }
+                    }
+
+                    // Try cache first
+                    let metadata = std::fs::metadata(path).ok();
+                    let cached_results = if let (Some(cache), Some(meta)) = (&self.cache, metadata)
+                    {
+                        let mtime = meta.modified().ok();
+                        let size = meta.len();
+                        if let Some(mt) = mtime {
+                            cache.get(path, query, false, mt, size)
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    };
+
+                    let all_entries = if let Some(cached) = cached_results {
+                        if !self.quiet {
+                            self.print_progress('C');
+                        } else {
+                            eprintln!("[cache] hit {} (js)", path.display());
+                        }
+                        cached
+                    } else {
+                        // Cache miss - parse file with query for optimization
+                        match JsParser::parse_file_with_query(path, Some(query)) {
+                            Ok(entries) => {
+                                self.print_progress('.');
+
+                                // Store in cache
+                                if let (Some(cache), Ok(meta)) =
+                                    (&self.cache, std::fs::metadata(path))
+                                {
+                                    if let (Ok(mtime), size) = (meta.modified(), meta.len()) {
+                                        let _ =
+                                            cache.set(path, query, false, mtime, size, &entries);
+                                    }
+                                }
+
+                                entries
+                            }
+                            Err(e) => {
+                                skipped_files += 1;
+                                self.print_progress('S');
+                                if self.verbose {
+                                    eprintln!(
+                                        "\nWarning: Failed to parse JavaScript file {}: {}",
                                         path.display(),
                                         e
                                     );
@@ -481,27 +566,30 @@ mod tests {
     }
 
     #[test]
-    fn test_key_extractor_supports_json_and_yaml() -> Result<()> {
+    fn test_key_extractor_supports_yaml_json_and_js() -> Result<()> {
         let dir = tempdir()?;
         let yaml_path = dir.path().join("test.yml");
         let txt_path = dir.path().join("test.txt");
         let json_path = dir.path().join("test.json");
+        let js_path = dir.path().join("test.js");
 
         fs::write(&yaml_path, "key: \"test value\"")?;
         fs::write(&txt_path, "key: test value")?; // This should be ignored
-        fs::write(&json_path, "{\"key\": \"test value\"}")?; // This should be ignored
+        fs::write(&json_path, "{\"key\": \"test value\"}")?;
+        fs::write(&js_path, "export default { key: 'test value' };")?;
 
         let extractor = KeyExtractor::new();
         let results = extractor.extract(dir.path(), "test")?;
 
-        // Should find both YAML and JSON files
-        assert_eq!(results.len(), 2);
+        // Should find YAML, JSON, and JS files
+        assert_eq!(results.len(), 3);
         let extensions: Vec<_> = results
             .iter()
             .map(|e| e.file.extension().unwrap().to_string_lossy().to_string())
             .collect();
         assert!(extensions.contains(&"yml".to_string()));
         assert!(extensions.contains(&"json".to_string()));
+        assert!(extensions.contains(&"js".to_string()));
 
         Ok(())
     }
@@ -522,6 +610,52 @@ mod tests {
         // Should find the good file
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].value, "value");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_key_extractor_with_js_file() -> Result<()> {
+        let dir = tempdir()?;
+        let js_path = dir.path().join("en.js");
+
+        fs::write(
+            &js_path,
+            r#"
+export default {
+  table: {
+    emptyText: 'No Data',
+    confirmFilter: 'Confirm'
+  }
+};
+"#,
+        )?;
+
+        let extractor = KeyExtractor::new();
+        let results = extractor.extract(dir.path(), "No Data")?;
+
+        println!("Found {} translation entries:", results.len());
+        for entry in &results {
+            println!(
+                "  {} = {} ({}:{})",
+                entry.key,
+                entry.value,
+                entry.file.display(),
+                entry.line
+            );
+        }
+
+        assert!(
+            !results.is_empty(),
+            "Should find translation entries in JS file"
+        );
+
+        let no_data_entry = results.iter().find(|e| e.value == "No Data");
+        assert!(no_data_entry.is_some(), "Should find 'No Data' entry");
+
+        let entry = no_data_entry.unwrap();
+        assert_eq!(entry.key, "table.emptyText");
+        assert_eq!(entry.value, "No Data");
 
         Ok(())
     }

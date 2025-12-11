@@ -18,6 +18,10 @@ pub struct CodeReference {
     pub context: String,
     /// The translation key path that was matched
     pub key_path: String,
+    /// Context lines before the match
+    pub context_before: Vec<String>,
+    /// Context lines after the match
+    pub context_after: Vec<String>,
 }
 
 /// Pattern matcher for finding i18n key usage in code
@@ -100,6 +104,8 @@ impl PatternMatcher {
                                 pattern: pattern.as_str().to_string(),
                                 context: m.content.clone(),
                                 key_path: key_path.to_string(),
+                                context_before: m.context_before.clone(),
+                                context_after: m.context_after.clone(),
                             });
                             break; // Found a match, no need to check other patterns
                         }
@@ -148,6 +154,8 @@ mod tests {
             pattern: r#"I18n\.t\(['"]([^'"]+)['"]\)"#.to_string(),
             context: r#"I18n.t('invoice.labels.add_new')"#.to_string(),
             key_path: "invoice.labels.add_new".to_string(),
+            context_before: vec![],
+            context_after: vec![],
         };
 
         assert_eq!(code_ref.file, PathBuf::from("test.rb"));

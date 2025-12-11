@@ -1,5 +1,4 @@
-#[allow(deprecated)]
-use assert_cmd::Command;
+use assert_cmd::{cargo_bin, Command};
 use predicates::prelude::*;
 use std::fs;
 use tempfile::TempDir;
@@ -10,7 +9,7 @@ fn test_no_matches_shows_simple_message() {
     // This is NOT an error - it's a valid state
     let temp_dir = TempDir::new().unwrap();
 
-    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
+    let mut cmd = Command::new(cargo_bin!("cs"));
     cmd.arg("nonexistent text")
         .current_dir(temp_dir.path())
         .assert()
@@ -25,7 +24,7 @@ fn test_yaml_parse_error_is_handled_gracefully() {
     let yaml_path = temp_dir.path().join("invalid.yml");
     fs::write(&yaml_path, "key: [invalid yaml structure test").unwrap();
 
-    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
+    let mut cmd = Command::new(cargo_bin!("cs"));
     cmd.arg("--verbose") // Enable verbose mode
         .arg("test")
         .current_dir(temp_dir.path())
@@ -41,7 +40,7 @@ fn test_json_parse_error_is_handled_gracefully() {
     let json_path = temp_dir.path().join("invalid.json");
     fs::write(&json_path, "{ key: 'invalid json test' }").unwrap(); // Invalid JSON
 
-    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
+    let mut cmd = Command::new(cargo_bin!("cs"));
     cmd.arg("--verbose") // Enable verbose mode
         .arg("test")
         .current_dir(temp_dir.path())
