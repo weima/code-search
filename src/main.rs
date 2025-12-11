@@ -196,7 +196,9 @@ fn main() {
 
         match cs::run_trace(query) {
             Ok(Some(tree)) => {
-                let formatter = cs::TreeFormatter::new().with_search_query(search_text.clone());
+                let formatter = cs::TreeFormatter::new()
+                    .with_search_query(search_text.clone())
+                    .with_simple_format(cli.simple);
                 let output = formatter.format_trace_tree(&tree, direction);
                 print!("{}", output);
             }
@@ -327,66 +329,90 @@ fn main() {
                     if !has_any_results {
                         println!("No matches found for '{}'", search_text);
                     } else if cli.search_all {
-                        // --all flag: Show structured sections with headers
-                        println!("=== Search Results for '{}' ===\n", search_text.bold());
+                        if cli.simple {
+                            // Simple format: just output results without headers
+                            let formatter = cs::TreeFormatter::new()
+                                .with_search_query(search_text.clone())
+                                .with_simple_format(true);
 
-                        // Section 1: Translation Entries
-                        println!("{}", "1. Translation Keys:".bold().cyan());
-                        if has_translation_results {
-                            let tree = cs::ReferenceTreeBuilder::build(&result);
-                            let formatter =
-                                cs::TreeFormatter::new().with_search_query(search_text.clone());
-                            let output = formatter.format(&tree);
-                            println!("{}", output);
+                            if has_translation_results || has_code_results {
+                                let output = formatter.format_result(&result);
+                                print!("{}", output);
+                            }
                         } else {
-                            println!("   {}", "No translation keys found".dimmed());
-                        }
-                        println!();
+                            // --all flag: Show structured sections with headers
+                            println!("=== Search Results for '{}' ===\n", search_text.bold());
 
-                        // Section 2: Direct Code Matches
-                        println!("{}", "2. Code Matches:".bold().cyan());
-                        if has_code_results {
-                            let direct_matches: Vec<_> = result
-                                .code_references
-                                .iter()
-                                .filter(|r| r.key_path.is_empty())
-                                .collect();
-                            if !direct_matches.is_empty() {
-                                for code_ref in direct_matches {
-                                    println!(
-                                        "   {}:{}: {}",
-                                        code_ref.file.display().to_string().bright_blue(),
-                                        code_ref.line.to_string().yellow(),
-                                        code_ref.context.trim().dimmed()
-                                    );
+                            // Section 1: Translation Entries
+                            println!("{}", "1. Translation Keys:".bold().cyan());
+                            if has_translation_results {
+                                let formatter = cs::TreeFormatter::new()
+                                    .with_search_query(search_text.clone())
+                                    .with_simple_format(false);
+
+                                let tree = cs::ReferenceTreeBuilder::build(&result);
+                                let output = formatter.format(&tree);
+                                println!("{}", output);
+                            } else {
+                                println!("   {}", "No translation keys found".dimmed());
+                            }
+                            println!();
+
+                            // Section 2: Direct Code Matches
+                            println!("{}", "2. Code Matches:".bold().cyan());
+                            if has_code_results {
+                                let direct_matches: Vec<_> = result
+                                    .code_references
+                                    .iter()
+                                    .filter(|r| r.key_path.is_empty())
+                                    .collect();
+                                if !direct_matches.is_empty() {
+                                    for code_ref in direct_matches {
+                                        println!(
+                                            "   {}:{}: {}",
+                                            code_ref.file.display().to_string().bright_blue(),
+                                            code_ref.line.to_string().yellow(),
+                                            code_ref.context.trim().dimmed()
+                                        );
+                                    }
+                                } else {
+                                    println!("   {}", "No direct code matches found".dimmed());
                                 }
                             } else {
-                                println!("   {}", "No direct code matches found".dimmed());
+                                println!("   {}", "No code matches found".dimmed());
                             }
-                        } else {
-                            println!("   {}", "No code matches found".dimmed());
-                        }
-                        println!();
+                            println!();
 
-                        // Section 3: File Names
-                        println!("{}", "3. Matching Files:".bold().cyan());
-                        if has_file_results {
-                            for file_match in &file_matches {
-                                let path_str = file_match.path.display().to_string();
-                                let highlighted =
-                                    highlight_match(&path_str, &search_text, !cli.ignore_case);
-                                println!("   {}", highlighted);
+                            // Section 3: File Names
+                            println!("{}", "3. Matching Files:".bold().cyan());
+                            if has_file_results {
+                                for file_match in &file_matches {
+                                    let path_str = file_match.path.display().to_string();
+                                    let highlighted =
+                                        highlight_match(&path_str, &search_text, !cli.ignore_case);
+                                    println!("   {}", highlighted);
+                                }
+                            } else {
+                                println!("   {}", "No matching file names found".dimmed());
                             }
-                        } else {
-                            println!("   {}", "No matching file names found".dimmed());
                         }
                     } else {
                         // Default behavior: Show only non-empty results
                         if has_translation_results || has_code_results {
-                            let tree = cs::ReferenceTreeBuilder::build(&result);
-                            let formatter =
-                                cs::TreeFormatter::new().with_search_query(search_text.clone());
-                            let output = formatter.format(&tree);
+                            let formatter = cs::TreeFormatter::new()
+                                .with_search_query(search_text.clone())
+                                .with_simple_format(cli.simple);
+
+                            let output = if cli.simple {
+                                formatter.format_result(&result)
+                            } else if has_translation_results {
+                                // Use tree format for translation searches to show hierarchy
+                                let tree = cs::ReferenceTreeBuilder::build(&result);
+                                formatter.format(&tree)
+                            } else {
+                                // Use result format for exact matches to show context lines like rg
+                                formatter.format_result(&result)
+                            };
                             println!("{}", output);
                         }
 

@@ -165,13 +165,26 @@ pub struct SearchResult {
 #[must_use = "this function returns a Result that should be handled"]
 pub fn run_search(query: SearchQuery) -> Result<SearchResult> {
     // Determine the base directory to search
-    let base_dir = query
+    let raw_base_dir = query
         .base_dir
         .clone()
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
 
-    // Compute exclusions: Default (based on project type) + Manual (from query)
-    let project_type = config::detect_project_type(&base_dir);
+    // Handle case where base_dir is a file vs directory
+    let (search_dir, specific_file) = if raw_base_dir.is_file() {
+        // If it's a file, search in its parent directory but only that specific file
+        let parent_dir = raw_base_dir
+            .parent()
+            .map(|p| p.to_path_buf())
+            .unwrap_or_else(|| PathBuf::from("."));
+        (parent_dir, Some(raw_base_dir.clone()))
+    } else {
+        // If it's a directory, search the whole directory
+        (raw_base_dir.clone(), None)
+    };
+
+    // Use the search directory for project type detection
+    let project_type = config::detect_project_type(&search_dir);
     let mut exclusions: Vec<String> = config::get_default_exclusions(project_type)
         .iter()
         .map(|&s| s.to_string())
@@ -179,33 +192,41 @@ pub fn run_search(query: SearchQuery) -> Result<SearchResult> {
     exclusions.extend(query.exclude_patterns.clone());
 
     // Step 1: Extract translation entries matching the search text
-    let mut extractor = KeyExtractor::new();
-    extractor.set_exclusions(exclusions.clone());
-    extractor.set_verbose(query.verbose);
-    extractor.set_quiet(query.quiet);
-    extractor.set_case_sensitive(query.case_sensitive);
-    let translation_entries = extractor.extract(&base_dir, &query.text)?;
+    // Only search for translation entries if we're not searching a specific file
+    let translation_entries = if specific_file.is_none() {
+        let mut extractor = KeyExtractor::new();
+        extractor.set_exclusions(exclusions.clone());
+        extractor.set_verbose(query.verbose);
+        extractor.set_quiet(query.quiet);
+        extractor.set_case_sensitive(query.case_sensitive);
+        extractor.extract(&search_dir, &query.text)?
+    } else {
+        Vec::new() // Skip translation search for specific files
+    };
 
     // Step 2: Find code references for each translation entry
     // Search for full key AND partial keys (for namespace caching patterns)
-    let mut matcher = PatternMatcher::new(base_dir.clone());
-    matcher.set_exclusions(exclusions.clone());
     let mut all_code_refs = Vec::new();
 
-    for entry in &translation_entries {
-        // Generate all key variations (full key + partial keys)
-        let key_variations = generate_partial_keys(&entry.key);
+    if specific_file.is_none() {
+        let mut matcher = PatternMatcher::new(search_dir.clone());
+        matcher.set_exclusions(exclusions.clone());
 
-        // Search for each key variation
-        for key in &key_variations {
-            let code_refs = matcher.find_usages(key)?;
-            all_code_refs.extend(code_refs);
+        for entry in &translation_entries {
+            // Generate all key variations (full key + partial keys)
+            let key_variations = generate_partial_keys(&entry.key);
+
+            // Search for each key variation
+            for key in &key_variations {
+                let code_refs = matcher.find_usages(key)?;
+                all_code_refs.extend(code_refs);
+            }
         }
     }
 
     // Step 3: Perform direct text search for the query text
     // This ensures we find hardcoded text even if no translation keys are found
-    let text_searcher = TextSearcher::new(base_dir.clone())
+    let text_searcher = TextSearcher::new(search_dir.clone())
         .case_sensitive(query.case_sensitive)
         .word_match(query.word_match)
         .is_regex(query.is_regex)
@@ -215,11 +236,21 @@ pub fn run_search(query: SearchQuery) -> Result<SearchResult> {
 
     if let Ok(direct_matches) = text_searcher.search(&query.text) {
         for m in direct_matches {
+            // If searching a specific file, only include matches from that file
+            if let Some(ref target_file) = specific_file {
+                if m.file != *target_file {
+                    continue;
+                }
+            }
+
             // Filter out matches that are in translation files (already handled)
+            // But only if we're not searching a specific file
             let path_str = m.file.to_string_lossy();
-            if path_str.ends_with(".yml")
-                || path_str.ends_with(".yaml")
-                || path_str.ends_with(".json")
+            if specific_file.is_none()
+                && (path_str.ends_with(".yml")
+                    || path_str.ends_with(".yaml")
+                    || path_str.ends_with(".json")
+                    || path_str.ends_with(".js"))
             {
                 continue;
             }
@@ -231,11 +262,13 @@ pub fn run_search(query: SearchQuery) -> Result<SearchResult> {
 
             // Convert Match to CodeReference
             all_code_refs.push(CodeReference {
-                file: m.file,
+                file: m.file.clone(),
                 line: m.line,
                 pattern: "Direct Match".to_string(),
-                context: m.content,
+                context: m.content.clone(),
                 key_path: query.text.clone(), // Use the search text as the "key"
+                context_before: m.context_before.clone(),
+                context_after: m.context_after.clone(),
             });
         }
     }

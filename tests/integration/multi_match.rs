@@ -2,8 +2,7 @@
 ///
 /// These tests verify that the tool can find and display all locations where
 /// a translation key is used across multiple files.
-#[allow(deprecated)]
-use assert_cmd::Command;
+use assert_cmd::{cargo_bin, Command};
 use predicates::prelude::*;
 use std::fs;
 use tempfile::TempDir;
@@ -14,7 +13,7 @@ fn test_multiple_code_references_all_shown() {
     // When I search for the associated text
     // Then I see all usage locations in the tree
 
-    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
+    let mut cmd = Command::new(cargo_bin!("cs"));
     cmd.arg("add new")
         .current_dir("tests/fixtures/rails-app")
         .assert()
@@ -29,7 +28,7 @@ fn test_multiple_usages_show_line_numbers() {
     // When I search for it
     // Then each usage shows full file path and line number
 
-    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
+    let mut cmd = Command::new(cargo_bin!("cs"));
     cmd.arg("add new")
         .current_dir("tests/fixtures/rails-app")
         .assert()
@@ -45,7 +44,7 @@ fn test_multiple_translation_files() {
     // When I search for it
     // Then all translation files are shown
 
-    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
+    let mut cmd = Command::new(cargo_bin!("cs"));
     cmd.arg("ajouter nouveau") // French translation for "add new"
         .current_dir("tests/fixtures/rails-app")
         .assert()
@@ -59,7 +58,7 @@ fn test_partial_key_matching() {
     // When I search for translation text
     // Then the tool finds both full and partial key usages
 
-    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
+    let mut cmd = Command::new(cargo_bin!("cs"));
     cmd.arg("add new")
         .current_dir("tests/fixtures/rails-app")
         .assert()
@@ -78,7 +77,7 @@ fn test_multiple_patterns_detected() {
     // When I search for translation text
     // Then all patterns are detected (t(), I18n.t(), etc.)
 
-    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
+    let mut cmd = Command::new(cargo_bin!("cs"));
     cmd.arg("add new")
         .current_dir("tests/fixtures/rails-app")
         .assert()
@@ -92,7 +91,7 @@ fn test_related_usages_grouped() {
     // When I display results
     // Then related usages are shown in tree format
 
-    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
+    let mut cmd = Command::new(cargo_bin!("cs"));
     cmd.arg("add new")
         .current_dir("tests/fixtures/rails-app")
         .assert()
@@ -117,7 +116,7 @@ fn test_multiple_keys_with_same_value() {
     )
     .unwrap();
 
-    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
+    let mut cmd = Command::new(cargo_bin!("cs"));
     cmd.arg("submit")
         .current_dir(temp_dir.path())
         .assert()
@@ -141,7 +140,7 @@ fn test_deeply_nested_keys() {
     fs::write(&yaml_file,
         "en:\n  app:\n    views:\n      invoice:\n        form:\n          labels:\n            add_new: \"Add New\"").unwrap();
 
-    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
+    let mut cmd = Command::new(cargo_bin!("cs"));
     cmd.arg("Add New")
         .current_dir(temp_dir.path())
         .assert()
@@ -157,7 +156,7 @@ fn test_cross_file_references() {
     // When I search for it
     // Then all files are listed
 
-    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
+    let mut cmd = Command::new(cargo_bin!("cs"));
     cmd.arg("add new")
         .current_dir("tests/fixtures/rails-app")
         .assert()
@@ -173,7 +172,7 @@ fn test_no_duplicate_results() {
     // When I search for it
     // Then each unique location is shown only once (no duplicates)
 
-    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
+    let mut cmd = Command::new(cargo_bin!("cs"));
     let output = cmd
         .arg("add new")
         .current_dir("tests/fixtures/rails-app")
@@ -216,7 +215,7 @@ fn test_multiple_frameworks_in_one_project() {
     fs::write(temp_dir.path().join("react.tsx"), "t('greeting')").unwrap();
     fs::write(temp_dir.path().join("vue.vue"), "$t('greeting')").unwrap();
 
-    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin("cs"));
+    let mut cmd = Command::new(cargo_bin!("cs"));
     cmd.arg("Hello")
         .current_dir(temp_dir.path())
         .assert()
