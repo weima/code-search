@@ -5,6 +5,7 @@
 Cargo.lock
 
 # IDE
+.kiro/
 .idea/
 .vscode/
 *.swp
