@@ -23,9 +23,11 @@ fn test_simple_format_programmatic_parsing() {
     let stderr = String::from_utf8(output.stderr).expect("Stderr should be valid UTF-8");
 
     // Verify stderr is empty (all output goes to stdout)
+    // Verify stderr is empty (all output goes to stdout)
     assert!(
         stderr.trim().is_empty(),
-        "Stderr should be empty in simple mode"
+        "Stderr should be empty in simple mode, but got:\n{}",
+        stderr
     );
 
     // Parse each line of output
