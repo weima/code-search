@@ -179,8 +179,6 @@ impl KeyExtractor {
                     let all_entries = if let Some(cached) = cached_results {
                         if !self.quiet {
                             self.print_progress('C');
-                        } else {
-                            eprintln!("[cache] hit {} (yaml)", path.display());
                         }
                         cached
                     } else {
@@ -263,8 +261,6 @@ impl KeyExtractor {
                     let all_entries = if let Some(cached) = cached_results {
                         if !self.quiet {
                             self.print_progress('C');
-                        } else {
-                            eprintln!("[cache] hit {} (json)", path.display());
                         }
                         cached
                     } else {
@@ -346,8 +342,6 @@ impl KeyExtractor {
                     let all_entries = if let Some(cached) = cached_results {
                         if !self.quiet {
                             self.print_progress('C');
-                        } else {
-                            eprintln!("[cache] hit {} (js)", path.display());
                         }
                         cached
                     } else {

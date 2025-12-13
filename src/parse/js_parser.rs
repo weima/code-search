@@ -191,8 +191,28 @@ impl JsParser {
                         .collect();
                     Self::flatten_object(&nested_map, full_key, file_path, entries);
                 }
+                serde_json::Value::Array(arr) => {
+                    for (i, v) in arr.iter().enumerate() {
+                        let item_key = format!("{}.{}", full_key, i);
+
+                        if let serde_json::Value::String(s) = v {
+                            entries.push(TranslationEntry {
+                                key: item_key,
+                                value: s.clone(),
+                                file: file_path.to_path_buf(),
+                                line: 1,
+                            });
+                        } else if let serde_json::Value::Object(nested_obj) = v {
+                            let nested_map: HashMap<String, serde_json::Value> = nested_obj
+                                .iter()
+                                .map(|(k, v)| (k.clone(), v.clone()))
+                                .collect();
+                            Self::flatten_object(&nested_map, item_key, file_path, entries);
+                        }
+                    }
+                }
                 _ => {
-                    // Skip non-string, non-object values
+                    // Skip other types
                 }
             }
         }
@@ -200,41 +220,55 @@ impl JsParser {
 
     /// Check if a file contains the query and if it's in a translation structure
     pub fn contains_query(file_path: &Path, query: &str) -> Result<bool> {
-        use std::process::Command;
+        use grep_matcher::Matcher;
+        use grep_regex::RegexMatcherBuilder;
+        use grep_searcher::{sinks::UTF8, SearcherBuilder};
 
-        // Use ripgrep to find exact matches with line numbers and column positions
-        let output = Command::new("rg")
-            .arg("--line-number")
-            .arg("--column")
-            .arg("--fixed-strings")
-            .arg("--ignore-case")
-            .arg(query)
-            .arg(file_path)
-            .output();
+        // Build the regex matcher with fixed string (literal) matching
+        // We use the grep crates directly to avoid spawning external processes
+        let matcher = RegexMatcherBuilder::new()
+            .case_insensitive(true)
+            .fixed_strings(true)
+            .build(query)
+            .map_err(|e| SearchError::Generic(format!("Failed to build matcher: {}", e)))?;
 
-        match output {
-            Ok(result) if result.status.success() => {
-                let output_str = String::from_utf8_lossy(&result.stdout);
+        let mut searcher = SearcherBuilder::new().line_number(true).build();
 
-                // Parse ripgrep output: format is "line:column:content"
-                for line in output_str.lines() {
-                    let parts: Vec<&str> = line.splitn(3, ':').collect();
-                    if parts.len() >= 3 {
-                        if let (Ok(line_num), Ok(col_num)) =
-                            (parts[0].parse::<usize>(), parts[1].parse::<usize>())
-                        {
-                            // Check if this match is a translation value
-                            if Self::is_translation_value(file_path, line_num, col_num, query)? {
-                                return Ok(true);
-                            }
-                        }
+        let mut found = false;
+
+        // Search the file
+        let _ = searcher.search_path(
+            &matcher,
+            file_path,
+            UTF8(|line_num, line| {
+                let mut stop = false;
+                // Iterate over all matches in the line to find the column number
+                // We use the same matcher to find the position within the line
+                let _ = matcher.find_iter(line.as_bytes(), |m| {
+                    // m.start() is 0-based byte offset, but we need 1-based column for is_translation_value
+                    let col_num = m.start() + 1;
+
+                    // Check if this match is a translation value
+                    // We catch potential errors and treat them as false (not found in this context)
+                    if let Ok(true) =
+                        Self::is_translation_value(file_path, line_num as usize, col_num, query)
+                    {
+                        found = true;
+                        stop = true;
+                        return false; // Stop match iteration
                     }
+                    true // Continue match iteration
+                });
+
+                if stop {
+                    Ok(false) // Stop file search
+                } else {
+                    Ok(true) // Continue file search
                 }
-                Ok(false) // Found matches but none are translation values
-            }
-            Ok(_) => Ok(false), // No matches found
-            Err(_) => Ok(true), // If ripgrep fails, assume it contains the query (safe fallback)
-        }
+            }),
+        );
+
+        Ok(found)
     }
 
     /// Check if a match at a specific position is a translation value
@@ -459,7 +493,14 @@ impl JsParser {
             }
         }
 
-        Self::parse_file(file_path)
+        let mut entries = Self::parse_file(file_path)?;
+
+        if let Some(q) = query {
+            let q_lower = q.to_lowercase();
+            entries.retain(|e| e.value.to_lowercase().contains(&q_lower));
+        }
+
+        Ok(entries)
     }
 }
 
