@@ -85,7 +85,7 @@ fn test_js_parser_performance_large_file() {
     // Verify data integrity
     let sample_entry = entries
         .iter()
-        .find(|e| e.key.contains("auth.labels.create"))
+        .find(|e| e.key == "auth.labels.create")
         .unwrap();
     assert_eq!(sample_entry.value, "Click here to continue");
 

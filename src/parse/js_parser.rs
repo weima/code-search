@@ -191,8 +191,28 @@ impl JsParser {
                         .collect();
                     Self::flatten_object(&nested_map, full_key, file_path, entries);
                 }
+                serde_json::Value::Array(arr) => {
+                    for (i, v) in arr.iter().enumerate() {
+                        let item_key = format!("{}.{}", full_key, i);
+
+                        if let serde_json::Value::String(s) = v {
+                            entries.push(TranslationEntry {
+                                key: item_key,
+                                value: s.clone(),
+                                file: file_path.to_path_buf(),
+                                line: 1,
+                            });
+                        } else if let serde_json::Value::Object(nested_obj) = v {
+                            let nested_map: HashMap<String, serde_json::Value> = nested_obj
+                                .iter()
+                                .map(|(k, v)| (k.clone(), v.clone()))
+                                .collect();
+                            Self::flatten_object(&nested_map, item_key, file_path, entries);
+                        }
+                    }
+                }
                 _ => {
-                    // Skip non-string, non-object values
+                    // Skip other types
                 }
             }
         }
@@ -473,7 +493,14 @@ impl JsParser {
             }
         }
 
-        Self::parse_file(file_path)
+        let mut entries = Self::parse_file(file_path)?;
+
+        if let Some(q) = query {
+            let q_lower = q.to_lowercase();
+            entries.retain(|e| e.value.to_lowercase().contains(&q_lower));
+        }
+
+        Ok(entries)
     }
 }
 
