@@ -6,6 +6,30 @@ use assert_cmd::{cargo_bin, Command};
 use std::fs;
 use tempfile::TempDir;
 
+/// Helper to parse simple format output robustly, handling Windows paths (drive letters)
+fn parse_simple_output(line: &str) -> Option<(String, u32, String)> {
+    let parts: Vec<&str> = line.split(':').collect();
+    if parts.len() < 3 {
+        return None;
+    }
+
+    // Find the first part that looks like a line number (pure digits)
+    // We search from index 1 to allow for potential drive letter at index 0
+    for i in 1..parts.len() {
+        if let Ok(line_num) = parts[i].parse::<u32>() {
+            // Found the line number!
+            // Everything before it is the file path (rejoined by colon for Windows drive letters)
+            let file_path = parts[0..i].join(":");
+            // Everything after it is the content (rejoined by colon for content containing colons)
+            let content = parts[i + 1..].join(":");
+
+            return Some((file_path, line_num, content));
+        }
+    }
+
+    None
+}
+
 #[test]
 fn test_simple_format_programmatic_parsing() {
     // Test that AI agents can reliably parse simple format output
@@ -41,38 +65,33 @@ fn test_simple_format_programmatic_parsing() {
     assert!(!lines.is_empty(), "Should have at least one result");
 
     for line in lines {
-        // Each line should follow file:line:content format
-        let parts: Vec<&str> = line.splitn(3, ':').collect();
-        assert_eq!(parts.len(), 3, "Line should have exactly 3 parts: {}", line);
+        // Use robust parser instead of simple split
+        let result = parse_simple_output(line);
+        assert!(result.is_some(), "Line should be parseable: {}", line);
+
+        let (file_path, _line_num, content) = result.unwrap();
 
         // File path should not be empty
         assert!(
-            !parts[0].is_empty(),
+            !file_path.is_empty(),
             "File path should not be empty: {}",
             line
         );
 
-        // Line number should be numeric
-        assert!(
-            parts[1].parse::<u32>().is_ok(),
-            "Line number should be numeric: {}",
-            line
-        );
-
-        // Content should be present (third part exists by definition)
+        // Content should be present
         // Verify no tree characters or ANSI codes
         assert!(
-            !parts[2].contains("├─>"),
+            !content.contains("├─>"),
             "Content should not contain tree characters: {}",
             line
         );
         assert!(
-            !parts[2].contains("└─>"),
+            !content.contains("└─>"),
             "Content should not contain tree characters: {}",
             line
         );
         assert!(
-            !parts[2].contains("\x1b["),
+            !content.contains("\x1b["),
             "Content should not contain ANSI codes: {}",
             line
         );
@@ -166,10 +185,10 @@ fn test_performance_with_large_codebase() {
 
     let duration = start.elapsed();
 
-    // Should complete within reasonable time (10 seconds for test fixtures)
+    // Should complete within reasonable time (30 seconds for test fixtures, accounting for Windows CI)
     assert!(
-        duration.as_secs() < 10,
-        "Search should complete within 10 seconds, took {:?}",
+        duration.as_secs() < 30,
+        "Search should complete within 30 seconds, took {:?}",
         duration
     );
 
@@ -179,8 +198,11 @@ fn test_performance_with_large_codebase() {
         // Verify output is still parseable even with many results
         for line in stdout.lines() {
             if !line.trim().is_empty() {
-                let parts: Vec<&str> = line.splitn(3, ':').collect();
-                assert_eq!(parts.len(), 3, "Line should be parseable: {}", line);
+                assert!(
+                    parse_simple_output(line).is_some(),
+                    "Line should be parseable: {}",
+                    line
+                );
             }
         }
     }
@@ -207,11 +229,8 @@ fn test_ai_agent_workflow_simulation() {
     let mut parsed_results = Vec::new();
     for line in stdout.lines() {
         if !line.trim().is_empty() {
-            let parts: Vec<&str> = line.splitn(3, ':').collect();
-            if parts.len() == 3 {
-                if let Ok(line_num) = parts[1].parse::<u32>() {
-                    parsed_results.push((parts[0].to_string(), line_num, parts[2].to_string()));
-                }
+            if let Some((path, line_num, content)) = parse_simple_output(line) {
+                parsed_results.push((path, line_num, content));
             }
         }
     }
@@ -339,10 +358,8 @@ fn test_output_consistency_across_search_types() {
         let stdout = String::from_utf8(translation_output.stdout).unwrap();
         for line in stdout.lines() {
             if !line.trim().is_empty() {
-                let parts: Vec<&str> = line.splitn(3, ':').collect();
-                assert_eq!(
-                    parts.len(),
-                    3,
+                assert!(
+                    parse_simple_output(line).is_some(),
                     "Translation search line should be parseable: {}",
                     line
                 );
@@ -354,10 +371,8 @@ fn test_output_consistency_across_search_types() {
         let stdout = String::from_utf8(exact_output.stdout).unwrap();
         for line in stdout.lines() {
             if !line.trim().is_empty() {
-                let parts: Vec<&str> = line.splitn(3, ':').collect();
-                assert_eq!(
-                    parts.len(),
-                    3,
+                assert!(
+                    parse_simple_output(line).is_some(),
                     "Exact search line should be parseable: {}",
                     line
                 );
@@ -400,10 +415,8 @@ fn test_large_output_handling() {
 
         // All lines should still be parseable
         for line in lines {
-            let parts: Vec<&str> = line.splitn(3, ':').collect();
-            assert_eq!(
-                parts.len(),
-                3,
+            assert!(
+                parse_simple_output(line).is_some(),
                 "Large output line should be parseable: {}",
                 line
             );
@@ -454,10 +467,8 @@ fn test_special_characters_in_ai_workflows() {
             let stdout = String::from_utf8(output.stdout).unwrap();
             for line in stdout.lines() {
                 if !line.trim().is_empty() {
-                    let parts: Vec<&str> = line.splitn(3, ':').collect();
-                    assert_eq!(
-                        parts.len(),
-                        3,
+                    assert!(
+                        parse_simple_output(line).is_some(),
                         "Special character search result should be parseable: {}",
                         line
                     );
